@@ -19,26 +19,6 @@ vars = {
   EMAIL_RATE_LIMIT_MAX = "2"          # 2 emails per window
 }
 
-# Environment - Staging
-[env.staging]
-vars = { 
-  NODE_ENV = "staging",
-  RATE_LIMIT_WINDOW_MS = "900000",    # 15 minutes
-  RATE_LIMIT_MAX = "100",             # Higher limit for testing
-  EMAIL_RATE_LIMIT_WINDOW_MS = "3600000",   # 1 hour for testing
-  EMAIL_RATE_LIMIT_MAX = "10"         # Higher limit for testing
-}
-
-# Environment - Development
-[env.development]
-vars = { 
-  NODE_ENV = "development",
-  RATE_LIMIT_WINDOW_MS = "60000",     # 1 minute for easier testing
-  RATE_LIMIT_MAX = "1000",            # Very high limit for development
-  EMAIL_RATE_LIMIT_WINDOW_MS = "60000",    # 1 minute for development
-  EMAIL_RATE_LIMIT_MAX = "1000"       # Very high limit for development
-}
-
 # Binding configuration for environment variables
 # To add secrets, run:
 # wrangler secret put EMAIL_USER
