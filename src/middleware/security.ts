@@ -73,42 +73,55 @@ export const emailRateLimiter = (
   next();
 };
 
-// Security headers configuration
-export const securityHeaders = (req: Request, res: Response, next: NextFunction) => {
-  // Set Content Security Policy
-  res.setHeader('Content-Security-Policy', "default-src 'self'");
-  
-  // Prevent MIME type sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'DENY');
-  
-  next();
+// Security header definitions
+const securityHeadersMap = {
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
 };
 
-// List of allowed headers
-const allowedHeaders = [
-  'Accept',
-  'Accept-Language',
-  'Content-Language',
-  'Content-Type',
-  'Origin',
-  'X-Requested-With'
-];
-
-export const securityMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // Set security headers
-  Object.entries(securityHeaders).forEach(([header, value]) => {
+// Apply security headers - separated function
+export const applySecurityHeaders = (res: Response): void => {
+  // Set security headers from the map
+  Object.entries(securityHeadersMap).forEach(([header, value]) => {
     res.setHeader(header, value);
   });
+};
 
-  // Validate request headers
-  const requestHeaders = Object.keys(req.headers);
-  const invalidHeaders = requestHeaders.filter(header => !allowedHeaders.includes(header));
+// List of allowed headers for request validation
+const allowedHeaders = [
+  'accept',
+  'accept-language',
+  'content-language',
+  'content-type',
+  'origin',
+  'x-requested-with',
+  'user-agent',
+  'host',
+  'connection',
+  'referer'
+];
+
+export const securityMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  // Apply security headers
+  applySecurityHeaders(res);
+
+  // Skip header validation for OPTIONS requests (needed for CORS preflight)
+  if (req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+
+  // Validate request headers (lowercase for consistency)
+  const requestHeaders = Object.keys(req.headers).map(h => h.toLowerCase());
+  const invalidHeaders = requestHeaders.filter(
+    header => !allowedHeaders.includes(header) && !header.startsWith('sec-')
+  );
 
   if (invalidHeaders.length > 0) {
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       message: 'Forbidden',
       error: {
@@ -116,6 +129,7 @@ export const securityMiddleware = (req: Request, res: Response, next: NextFuncti
         message: 'Request contains unsupported headers'
       }
     });
+    return;
   }
 
   next();

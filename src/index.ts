@@ -1,4 +1,3 @@
-import cors from 'cors';
 import express, { json, Request, Response } from 'express';
 import { createTransport } from 'nodemailer';
 
@@ -7,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
 import { EmailRequestSchema, type EmailRequest, type ApiResponse } from './schema/api.js';
 import { EmailError } from './utils/errors.js';
+import { corsHandler } from './middleware/cors-handler.js';
 
 // Logger function for structured logging
 const log = {
@@ -47,136 +47,19 @@ const log = {
   },
 };
 
-// CORS Configuration
-const allowedOrigins = [env.CORS_ORIGIN];
-
-// Allow the main site to access the API on a subdomain
-// e.g., saraengland.com should be able to access email.saraengland.com
-if (env.CORS_ORIGIN && env.CORS_ORIGIN.includes('://')) {
-  const mainDomain = env.CORS_ORIGIN.split('://')[1];
-  // Don't add email subdomain for localhost in development
-  if (!mainDomain.includes('localhost')) {
-    const emailSubdomain = `https://email.${mainDomain}`;
-    allowedOrigins.push(emailSubdomain);
-  }
-}
-
-// Add development origins if in development mode
-if (env.NODE_ENV === 'development') {
-  allowedOrigins.push('http://localhost:3000', 'http://localhost:5050');
-}
-
-log.info('CORS configuration', { allowedOrigins });
-
-// Helper function to generate CORS headers
-const getCorsHeaders = (origin: string | undefined): Record<string, string> => {
-  // Only set the Access-Control-Allow-Origin header if the origin is allowed
-  if (!origin || !allowedOrigins.includes(origin)) {
-    return {};
-  }
-
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400', // 24 hours
-  };
-};
-
 const app = express();
 
-// CORS middleware with strict origin checking
-app.use(
-  cors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void
-    ): void => {
-      // For security, we log requests with no origin
-      if (!origin) {
-        log.warn('Request received with no origin');
-        return callback(new Error('Not allowed by CORS - no origin'), false);
-      }
-
-      // Check if origin is in the allowed list
-      if (allowedOrigins.includes(origin)) {
-        log.info('Request allowed from origin', { origin });
-        return callback(null, true);
-      }
-
-      log.warn('Request blocked - unauthorized origin', { origin });
-      return callback(new Error('Not allowed by CORS'), false);
-    },
-    methods: ['POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
-    credentials: true,
-    maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 204,
-  })
-);
-
-// Specialized middleware to handle OPTIONS requests and CORS for Cloudflare Workers
-app.use((req: Request, res: Response, next): Response | void => {
-  const origin = req.get('origin');
-
-  // Handle OPTIONS requests (preflight) specifically
-  if (req.method === 'OPTIONS') {
-    // Only allow preflight requests from allowed origins
-    if (!origin || !allowedOrigins.includes(origin)) {
-      log.warn('Preflight request blocked - unauthorized origin', { origin });
-      return res.status(403).json({
-        success: false,
-        message: 'Forbidden',
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Access denied - unauthorized origin for preflight',
-        },
-      });
-    }
-
-    // Add CORS headers to the preflight response
-    const corsHeaders = getCorsHeaders(origin);
-    Object.entries(corsHeaders).forEach(([key, value]) => {
-      res.header(key, value);
-    });
-
-    // Respond to the preflight request
-    return res.status(204).end();
-  }
-
-  // For regular requests, verify the origin
-  if (!origin || !allowedOrigins.includes(origin)) {
-    log.warn('Request blocked - unauthorized origin', {
-      origin,
-      ip: req.ip,
-      path: req.path,
-    });
-    return res.status(403).json({
-      success: false,
-      message: 'Forbidden',
-      error: {
-        code: 'FORBIDDEN',
-        message: 'Access denied - unauthorized origin',
-      },
-    });
-  }
-
-  // Add CORS headers to all responses
-  const corsHeaders = getCorsHeaders(origin);
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    res.header(key, value);
-  });
-
-  // Set security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
-
-  next();
+// Log CORS origin for debugging
+log.info('CORS configuration', { 
+  corsOrigin: env.CORS_ORIGIN,
+  nodeEnv: env.NODE_ENV
 });
 
+// All routes should use the CORS handler middleware first
+// This ensures OPTIONS preflight requests are handled correctly
+app.use(corsHandler);
+
+// JSON body parser
 app.use(json({ limit: '10kb' }));
 
 // Request logging middleware
@@ -208,7 +91,7 @@ app.use((req: Request, res: Response, next): void => {
   next();
 });
 
-// Apply security middleware
+// Apply security middleware (this will also set security headers)
 app.use(securityMiddleware);
 
 // Rate limiting - configurable requests per window per IP (general protection)

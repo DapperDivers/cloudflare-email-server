@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { EmailRequestSchema } from '@/schema/email';
 import { logRequest, logResponse } from '@/middleware/logging';
 import { rateLimiter } from '@/middleware/rate-limit';
-import { securityHeaders } from '@/middleware/security';
+import { applySecurityHeaders, securityMiddleware } from '@/middleware/security';
 import { mockNodemailer } from './mocks';
 
 export class TestContext {
@@ -23,7 +23,10 @@ export class TestContext {
       credentials: true
     }));
     this.app.use(rateLimiter);
-    this.app.use(securityHeaders);
+    
+    // Apply security middleware (which will call applySecurityHeaders internally)
+    this.app.use(securityMiddleware);
+    
     this.app.use(logRequest);
     this.app.use(logResponse);
 
