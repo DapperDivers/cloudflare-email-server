@@ -47,13 +47,43 @@ const log = {
   },
 };
 
-const app = express();
-
-// Strict CORS configuration
+// CORS Configuration
 const allowedOrigins = [env.CORS_ORIGIN];
-if (env.NODE_ENV === 'development') {
-  allowedOrigins.push('http://localhost:3000');
+
+// Allow the main site to access the API on a subdomain
+// e.g., saraengland.com should be able to access email.saraengland.com
+if (env.CORS_ORIGIN && env.CORS_ORIGIN.includes('://')) {
+  const mainDomain = env.CORS_ORIGIN.split('://')[1];
+  // Don't add email subdomain for localhost in development
+  if (!mainDomain.includes('localhost')) {
+    const emailSubdomain = `https://email.${mainDomain}`;
+    allowedOrigins.push(emailSubdomain);
+  }
 }
+
+// Add development origins if in development mode
+if (env.NODE_ENV === 'development') {
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:5050');
+}
+
+log.info('CORS configuration', { allowedOrigins });
+
+// Helper function to generate CORS headers
+const getCorsHeaders = (origin: string | undefined): Record<string, string> => {
+  // Only set the Access-Control-Allow-Origin header if the origin is allowed
+  if (!origin || !allowedOrigins.includes(origin)) {
+    return {};
+  }
+
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400', // 24 hours
+  };
+};
+
+const app = express();
 
 // CORS middleware with strict origin checking
 app.use(
@@ -62,21 +92,22 @@ app.use(
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void
     ): void => {
-      // Allow requests with no origin (like mobile apps or curl requests)
+      // For security, we log requests with no origin
       if (!origin) {
         log.warn('Request received with no origin');
-        return callback(null, false);
+        return callback(new Error('Not allowed by CORS - no origin'), false);
       }
 
-      if (!allowedOrigins.includes(origin)) {
-        log.warn('Request blocked - unauthorized origin', { origin });
-        return callback(new Error('Not allowed by CORS'));
+      // Check if origin is in the allowed list
+      if (allowedOrigins.includes(origin)) {
+        log.info('Request allowed from origin', { origin });
+        return callback(null, true);
       }
 
-      log.info('Request allowed from origin', { origin });
-      return callback(null, true);
+      log.warn('Request blocked - unauthorized origin', { origin });
+      return callback(new Error('Not allowed by CORS'), false);
     },
-    methods: ['POST'],
+    methods: ['POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
     credentials: true,
     maxAge: 86400, // 24 hours
@@ -84,13 +115,38 @@ app.use(
   })
 );
 
-// Additional security middleware
+// Specialized middleware to handle OPTIONS requests and CORS for Cloudflare Workers
 app.use((req: Request, res: Response, next): Response | void => {
   const origin = req.get('origin');
 
-  // Block requests with no origin or unauthorized origins
+  // Handle OPTIONS requests (preflight) specifically
+  if (req.method === 'OPTIONS') {
+    // Only allow preflight requests from allowed origins
+    if (!origin || !allowedOrigins.includes(origin)) {
+      log.warn('Preflight request blocked - unauthorized origin', { origin });
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden',
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Access denied - unauthorized origin for preflight',
+        },
+      });
+    }
+
+    // Add CORS headers to the preflight response
+    const corsHeaders = getCorsHeaders(origin);
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.header(key, value);
+    });
+
+    // Respond to the preflight request
+    return res.status(204).end();
+  }
+
+  // For regular requests, verify the origin
   if (!origin || !allowedOrigins.includes(origin)) {
-    log.warn('Request blocked by security middleware', {
+    log.warn('Request blocked - unauthorized origin', {
       origin,
       ip: req.ip,
       path: req.path,
@@ -100,12 +156,18 @@ app.use((req: Request, res: Response, next): Response | void => {
       message: 'Forbidden',
       error: {
         code: 'FORBIDDEN',
-        message: 'Access denied',
+        message: 'Access denied - unauthorized origin',
       },
     });
   }
 
-  // Set strict security headers
+  // Add CORS headers to all responses
+  const corsHeaders = getCorsHeaders(origin);
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    res.header(key, value);
+  });
+
+  // Set security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');

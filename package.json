@@ -50,6 +50,7 @@
     "eslint-import-resolver-typescript": "3.8.6",
     "eslint-plugin-import": "2.31.0",
     "eslint-plugin-prettier": "5.2.3",
+    "eslint-plugin-vitest": "^0.5.4",
     "prettier": "3.5.3",
     "supertest": "^6.3.4",
     "typescript": "5.5.3",
