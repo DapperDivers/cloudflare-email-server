@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { rateLimit } from 'express-rate-limit';
 
 import { env } from '../config/env.js';
-import { RateLimitError } from '../utils/errors.js';
 import { ErrorCode } from '../schema/api.js';
 
 interface EmailRequestBody {

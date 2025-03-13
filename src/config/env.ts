@@ -16,8 +16,14 @@ const envSchema = z.object({
   // Email configuration
   EMAIL_SERVICE: z.enum(['gmail', 'outlook', 'yahoo', 'zoho']),
   EMAIL_USER: z.string().email('Invalid email format for EMAIL_USER'),
-  EMAIL_PASS: z.string().min(8, 'EMAIL_PASS must be at least 8 characters'),
-
+  EMAIL_PASS: z.string().min(8, 'EMAIL_PASS must be at least 8 characters').optional(),
+  
+  // OAuth2 configuration
+  OAUTH2_CLIENT_ID: z.string().optional(),
+  OAUTH2_CLIENT_SECRET: z.string().optional(),
+  OAUTH2_REFRESH_TOKEN: z.string().optional(),
+  OAUTH2_ACCESS_TOKEN: z.string().optional(),
+  
   // CORS configuration
   CORS_ORIGIN: z.string().url().default('http://localhost:3000'),
 
