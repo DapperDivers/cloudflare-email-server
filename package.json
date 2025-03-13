@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "worker:dev": "wrangler dev src/worker.ts",
-    "worker:build": "tsc && wrangler build",
+    "worker:build": "tsc && npm run build",
     "worker:deploy": "npm run build && wrangler deploy",
     "worker:deploy:production": "npm run build && wrangler deploy --env production",
     "worker:deploy:staging": "npm run build && wrangler deploy --env staging",
@@ -61,6 +61,6 @@
     "vite": "^6.2.1",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.8",
-    "wrangler": "^3.32.0"
+    "wrangler": "^4.0.0"
   }
 }

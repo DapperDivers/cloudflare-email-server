@@ -1,9 +1,7 @@
 name = "emailworker"
 main = "dist/worker.js"
-compatibility_date = "2024-06-01"
-
-# Specify Node.js compatibility
-nodejs_compat = true
+compatibility_flags = [ "nodejs_compat" ]
+compatibility_date = "2024-09-23"
 
 # Specify triggers
 [triggers]
@@ -11,13 +9,30 @@ crons = []
 
 # Environment - Production
 [env.production]
-vars = { 
-  NODE_ENV = "production",
-  RATE_LIMIT_WINDOW_MS = "900000",    # 15 minutes in milliseconds
-  RATE_LIMIT_MAX = "50",              # 50 requests per window
-  EMAIL_RATE_LIMIT_WINDOW_MS = "86400000",  # 24 hours in milliseconds
-  EMAIL_RATE_LIMIT_MAX = "2"          # 2 emails per window
-}
+[env.production.vars]
+NODE_ENV = "production"
+RATE_LIMIT_WINDOW_MS = "900000"    # 15 minutes in milliseconds
+RATE_LIMIT_MAX = "50"              # 50 requests per window
+EMAIL_RATE_LIMIT_WINDOW_MS = "86400000"  # 24 hours in milliseconds
+EMAIL_RATE_LIMIT_MAX = "2"          # 2 emails per window
+
+# Environment - Staging
+[env.staging]
+[env.staging.vars]
+NODE_ENV = "staging"
+RATE_LIMIT_WINDOW_MS = "900000"    # 15 minutes
+RATE_LIMIT_MAX = "100"             # Higher limit for testing
+EMAIL_RATE_LIMIT_WINDOW_MS = "3600000"   # 1 hour for testing
+EMAIL_RATE_LIMIT_MAX = "10"         # Higher limit for testing
+
+# Environment - Development
+[env.development]
+[env.development.vars]
+NODE_ENV = "development"
+RATE_LIMIT_WINDOW_MS = "60000"     # 1 minute for easier testing
+RATE_LIMIT_MAX = "1000"            # Very high limit for development
+EMAIL_RATE_LIMIT_WINDOW_MS = "60000"    # 1 minute for development
+EMAIL_RATE_LIMIT_MAX = "1000"       # Very high limit for development
 
 # Binding configuration for environment variables
 # To add secrets, run:
