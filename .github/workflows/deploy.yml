@@ -1,0 +1,43 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Ensure we wait for these checks to complete
+concurrency: 
+  group: "workers"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Require checks to pass before deploying
+    needs: []  # This will be filled by GitHub automatically with CI
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          workingDirectory: . 

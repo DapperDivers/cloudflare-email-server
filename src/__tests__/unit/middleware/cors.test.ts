@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import cors from 'cors';
 import { createMiddlewareTestContext, expectMiddlewareToCallNext } from '../../setup/middleware-test-utils';
 
@@ -65,7 +65,7 @@ describe('CORS Middleware', () => {
     });
 
     expect(next).toHaveBeenCalledWith(expect.any(Error));
-    expect(next.mock.calls[0][0].message).toBe('Not allowed by CORS');
+    expect((next as Mock).mock.calls[0][0].message).toBe('Not allowed by CORS');
   });
 
   it('should handle requests without origin header', async () => {

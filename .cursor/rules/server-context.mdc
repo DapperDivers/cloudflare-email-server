@@ -1,0 +1,333 @@
+---
+description: Development rules and guidelines for the Cloudflare Email Server
+globs: "src/**/*", "tests/**/*", "*.json", "*.ts", "*.js"
+alwaysApply: true
+---
+ ---
+description: Development rules and guidelines for the Cloudflare Email Server
+globs: ["src/**/*", "tests/**/*", "*.json", "*.ts", "*.js"]
+alwaysApply: true
+---
+# Cloudflare Email Server - Development Rules
+
+## Project Overview
+A secure and efficient email server built with Express.js and TypeScript, designed to handle contact form submissions and email notifications. The server is deployed on Cloudflare Workers and includes comprehensive security measures and rate limiting.
+
+## Technology Stack
+- Node.js 20+
+- Express.js with TypeScript
+- Nodemailer for email handling
+- Zod for input validation
+- Cloudflare Workers for deployment
+- Vitest for testing
+
+## Architecture
+### Core Components
+- Express server with middleware stack
+- Email service with rate limiting
+- Input validation and sanitization
+- Security middleware (CORS, Helmet, etc.)
+- Error handling and logging
+
+### File Structure
+```
+src/
+├── config/         # Configuration files
+│   ├── env.ts      # Environment configuration
+│   └── email.ts    # Email service configuration
+├── middleware/     # Express middleware
+│   ├── security.ts # Security headers and CORS
+│   ├── rate-limit.ts # Rate limiting
+│   └── validation.ts # Input validation
+├── services/       # Business logic
+│   └── email.service.ts # Email handling
+├── schema/         # Zod validation schemas
+│   └── api.ts      # API request/response schemas
+├── types/          # TypeScript types
+│   └── env.d.ts    # Environment variable types
+├── utils/          # Utility functions
+│   └── errors.ts   # Error handling utilities
+└── __tests__/      # Test files
+    ├── unit/       # Unit tests
+    └── integration/ # Integration tests
+```
+
+## Security Guidelines
+### Rate Limiting
+- General API: 50 requests per 15 minutes
+- Email endpoint: 2 requests per 24 hours
+- IP-based tracking
+- Configurable via environment variables
+- Rate limit headers in responses:
+  - X-RateLimit-Limit
+  - X-RateLimit-Remaining
+  - X-RateLimit-Reset
+
+### Input Validation
+- All inputs must be validated using Zod schemas
+- Sanitize all user input
+- Reject malformed requests early
+- Return appropriate error messages
+- Validation rules:
+  - Name: 2-100 characters, alphanumeric + spaces
+  - Email: Valid email format
+  - Message: 10-1000 characters
+
+### CORS Configuration
+- Strict origin checking
+- Limited to specified domains
+- Development mode includes localhost
+- No credentials required
+- Allowed methods: POST only
+- Allowed headers: Content-Type only
+
+### Security Headers
+- Content Security Policy: default-src 'none'
+- X-Frame-Options: DENY
+- X-Content-Type-Options: nosniff
+- X-XSS-Protection: 1; mode=block
+- Referrer-Policy: strict-origin-when-cross-origin
+
+## Error Handling
+### Logging
+- Structured JSON logging
+- Different log levels (info, warn, error)
+- Include relevant context
+- Sanitize sensitive data
+- Log format:
+```json
+{
+  "level": "info|warn|error",
+  "timestamp": "ISO8601",
+  "message": "string",
+  "context": {
+    "ip": "string",
+    "path": "string",
+    "method": "string"
+  }
+}
+```
+
+### Error Responses
+- Consistent error format:
+```json
+{
+  "success": false,
+  "message": "string",
+  "error": {
+    "code": "string",
+    "message": "string"
+  }
+}
+```
+- Appropriate HTTP status codes:
+  - 400: Bad Request
+  - 403: Forbidden
+  - 429: Too Many Requests
+  - 500: Internal Server Error
+- No stack traces in production
+- Rate limit information in headers
+
+## Testing Requirements
+### Unit Tests
+- Test all middleware
+- Test validation schemas
+- Test utility functions
+- Mock external services
+- Test coverage minimum: 80%
+- Test naming: describe('Component', () => { it('should...') })
+
+### Integration Tests
+- Test email sending
+- Test rate limiting
+- Test error handling
+- Test security measures
+- Use test database
+- Clean up after each test
+
+### Test Environment
+- Use test-specific configuration
+- Mock email service
+- Reset rate limiters between tests
+- Clean up after tests
+- Environment variables:
+  - NODE_ENV=test
+  - TEST_EMAIL=test@example.com
+  - TEST_PASSWORD=dummy-password
+
+## Code Style
+### TypeScript
+- Strict mode enabled
+- No any types
+- Proper type exports
+- Interface over type when possible
+- Example:
+```typescript
+interface EmailRequest {
+  name: string;
+  email: string;
+  message: string;
+}
+
+type ApiResponse = {
+  success: boolean;
+  message: string;
+};
+```
+
+### Naming Conventions
+- PascalCase for types/interfaces
+- camelCase for variables/functions
+- UPPER_CASE for constants
+- Descriptive names required
+- Examples:
+  - Types: `EmailRequest`, `ApiResponse`
+  - Functions: `validateEmail`, `sendEmail`
+  - Constants: `MAX_RETRIES`, `DEFAULT_TIMEOUT`
+
+### File Organization
+- One class/interface per file
+- Group related functionality
+- Clear file hierarchy
+- Consistent imports order:
+  1. Node.js built-ins
+  2. External dependencies
+  3. Internal modules
+  4. Types/interfaces
+
+## Performance
+### Optimization
+- Efficient middleware chain
+- Minimal dependencies
+- Proper caching headers
+- Optimized logging
+- Response time target: < 200ms
+- Memory usage: < 100MB
+
+### Monitoring
+- Request duration tracking
+- Error rate monitoring
+- Rate limit tracking
+- Resource usage metrics
+- Log aggregation
+- Alert thresholds:
+  - Error rate > 1%
+  - Response time > 500ms
+  - Memory usage > 80%
+
+## Environment Configuration
+### Required Variables
+- NODE_ENV: development|test|production
+- PORT: number (default: 3000)
+- CORS_ORIGIN: string
+- EMAIL_SERVICE: string
+- EMAIL_USER: string
+- EMAIL_PASS: string
+- RATE_LIMIT_WINDOW_MS: number
+- RATE_LIMIT_MAX: number
+
+### Development
+- Use .env.local
+- Enable debug logging
+- Disable rate limiting
+- Mock email service
+- Hot reload enabled
+- Source maps enabled
+
+### Production
+- Secure secrets
+- Enable all security features
+- Proper logging
+- Rate limiting enabled
+- Disable source maps
+- Enable compression
+
+## Deployment
+### Cloudflare Workers
+- Build before deploy
+- Environment variables
+- Proper error handling
+- Monitoring setup
+- Deployment checklist:
+  1. Run tests
+  2. Type check
+  3. Lint
+  4. Build
+  5. Deploy
+  6. Verify health
+
+### CI/CD
+- Automated testing
+- Type checking
+- Linting
+- Security scanning
+- Deployment stages:
+  1. Development
+  2. Staging
+  3. Production
+
+## Best Practices
+### Code Quality
+- Regular dependency updates
+- Security patches
+- Code reviews
+- Documentation updates
+- Code review checklist:
+  - Tests pass
+  - No linting errors
+  - Type safety
+  - Security compliance
+  - Performance impact
+
+### Security
+- Regular security audits
+- Dependency scanning
+- Rate limit monitoring
+- Error tracking
+- Security checklist:
+  - Input validation
+  - Rate limiting
+  - CORS
+  - Headers
+  - Error handling
+
+### Maintenance
+- Regular backups
+- Log rotation
+- Performance monitoring
+- Health checks
+- Maintenance schedule:
+  - Daily: Log rotation
+  - Weekly: Dependency updates
+  - Monthly: Security audit
+  - Quarterly: Performance review
+
+## Development Workflow
+1. Create feature branch
+2. Implement changes
+3. Add tests
+4. Update documentation
+5. Create pull request
+6. Pass CI checks
+7. Code review
+8. Merge to main
+9. Deploy to production
+
+## Version Control
+### Branch Strategy
+- main: Production code
+- develop: Development code
+- feature/*: New features
+- bugfix/*: Bug fixes
+- release/*: Release preparation
+
+### Commit Messages
+- Format: type(scope): message
+- Types:
+  - feat: New feature
+  - fix: Bug fix
+  - docs: Documentation
+  - style: Formatting
+  - refactor: Code restructuring
+  - test: Testing
+  - chore: Maintenance 

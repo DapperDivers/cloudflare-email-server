@@ -54,5 +54,4 @@ export const setupTestEnv = () => {
   });
 };
 
-// Export mock functions for use in tests
-export { rateLimiterMap }; 
+// Export mock functions for use in tests 

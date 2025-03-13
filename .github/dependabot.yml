@@ -1,0 +1,98 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Frontend dependencies configuration
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    versioning-strategy: "auto"
+    # Handle version updates
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Auto-merge configuration
+    auto-merge: true
+    auto-merge-conditions:
+      - "status-success=frontend-checks"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "type: frontend"
+    commit-message:
+      prefix: "⬆️ frontend"
+      include: "scope"
+
+  # Server dependencies configuration
+  - package-ecosystem: "npm"
+    directory: "/server"
+    schedule:
+      interval: "weekly"
+    versioning-strategy: "auto"
+    # Handle version updates
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Auto-merge configuration
+    auto-merge: true
+    auto-merge-conditions:
+      - "status-success=backend-checks"
+    labels:
+      - "dependencies"
+      - "server"
+      - "type: backend"
+    commit-message:
+      prefix: "⬆️ server"
+      include: "scope"
+
+  # Backend dependencies configuration
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    # Handle version updates
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Auto-merge minor and patch updates
+    labels:
+      - "dependencies"
+      - "python"
+      - "type: backend"
+    commit-message:
+      prefix: "⬆️ pip"
+      include: "scope"
+
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    # Look for `package.json` and `lock` files in the `root` directory
+    directory: "/"
+    # Check for updates once a week
+    schedule:
+      interval: "weekly"
+      # Check on Monday
+      day: "monday"
+    # Specify labels for pull requests
+    labels:
+      - "dependencies"
+    # Set version update strategy
+    versioning-strategy: increase
+    # Add reviewers
+    reviewers:
+      - "yourusername"
+    # Add assignees
+    assignees:
+      - "yourusername"
+    # Limit to 5 open pull requests for version updates
+    open-pull-requests-limit: 5
+    # Add target branch
+    target-branch: "main"
+    # Group all updates together
+    groups:
+      dependencies:
+        patterns:
+          - "*"
