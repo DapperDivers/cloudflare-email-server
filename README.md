@@ -79,6 +79,70 @@ npm run build
 npm run deploy
 ```
 
+## Cloudflare Workers Deployment
+
+This project is configured to deploy to Cloudflare Workers using Wrangler.
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+- A Cloudflare account with Workers enabled
+- Wrangler CLI installed and authenticated
+
+### Set Up
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables:
+   ```bash
+   npm run worker:secrets
+   ```
+   This will prompt you to enter values for:
+   - EMAIL_USER
+   - EMAIL_PASS
+   - CORS_ORIGIN
+   - EMAIL_SERVICE
+
+### Development
+
+To run the worker in development mode:
+
+```bash
+npm run worker:dev
+```
+
+This will start a local development server that mimics the Cloudflare Workers environment.
+
+### Deployment
+
+To deploy to Cloudflare Workers:
+
+```bash
+# Default environment
+npm run worker:deploy
+
+# Production environment
+npm run worker:deploy:production
+
+# Staging environment
+npm run worker:deploy:staging
+```
+
+### Configuration
+
+The worker configuration is defined in `wrangler.toml`. You can modify this file to change settings like:
+
+- Worker name
+- Environment variables
+- Deployment targets
+- Triggers
+
+For more information about Wrangler configuration, see the [Wrangler documentation](https://developers.cloudflare.com/workers/wrangler/configuration/).
+
 ## API Endpoints
 
 ### POST /api/send-email

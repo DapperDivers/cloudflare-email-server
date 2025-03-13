@@ -17,7 +17,13 @@
     "format": "prettier --write \"src/**/*.{ts,js,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "worker:dev": "wrangler dev src/worker.ts",
+    "worker:build": "tsc && wrangler build",
+    "worker:deploy": "npm run build && wrangler deploy",
+    "worker:deploy:production": "npm run build && wrangler deploy --env production",
+    "worker:deploy:staging": "npm run build && wrangler deploy --env staging",
+    "worker:secrets": "wrangler secret put EMAIL_USER && wrangler secret put EMAIL_PASS && wrangler secret put CORS_ORIGIN && wrangler secret put EMAIL_SERVICE && echo \"Do you want to set up OAuth2? (y/n)\" && read use_oauth2 && if [ \"$use_oauth2\" = \"y\" ]; then wrangler secret put OAUTH2_CLIENT_ID && wrangler secret put OAUTH2_CLIENT_SECRET && wrangler secret put OAUTH2_REFRESH_TOKEN; fi"
   },
   "keywords": [],
   "author": "",
@@ -27,12 +33,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
-    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.1.5",
-    "express-validator": "^7.2.1",
     "googleapis": "^146.0.0",
     "helmet": "^8.0.0",
-    "hpp": "^0.2.3",
     "nodemailer": "^6.9.12",
     "zod": "^3.24.2"
   },
@@ -57,6 +60,7 @@
     "typescript": "5.5.3",
     "vite": "^6.2.1",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.8"
+    "vitest": "^3.0.8",
+    "wrangler": "^3.32.0"
   }
 }
