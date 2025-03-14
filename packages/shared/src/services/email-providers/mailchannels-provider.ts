@@ -241,7 +241,7 @@ export class MailChannelsProvider implements EmailProvider {
     const payload: MailChannelsPayload = {
       personalizations: [
         {
-          to: [{ email: recipientEmail, name: recipientName }],
+          to: [{ email: env.EMAIL_USER, name: 'Site Admin' }],
         },
       ],
       from: {
@@ -252,11 +252,18 @@ export class MailChannelsProvider implements EmailProvider {
       content: [
         {
           type: 'text/plain',
-          value: `Name: ${recipientName}\nEmail: ${recipientEmail}\nMessage: ${message}`,
+          value: `SaraEngland.com Contact Submission\n\nFrom: ${recipientName} <${recipientEmail}>\n\nMessage:\n${message}`,
         },
         {
           type: 'text/html',
-          value: `<p><strong>Name:</strong> ${recipientName}</p><p><strong>Email:</strong> ${recipientEmail}</p><p><strong>Message:</strong></p><p>${message.replace(/\n/g, '<br>')}</p>`,
+          value: `
+            <h2>Submission from ${recipientName}</h2>
+            <p><strong>From:</strong> ${recipientName} &lt;${recipientEmail}&gt;</p>
+            <p><strong>Message:</strong></p>
+            <div style="margin-left: 20px; padding: 10px; border-left: 4px solid #ccc;">
+              ${message.replace(/\n/g, '<br>')}
+            </div>
+          `.trim(),
         },
       ],
       reply_to: {
