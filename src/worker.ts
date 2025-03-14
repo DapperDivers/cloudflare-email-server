@@ -11,7 +11,7 @@ import {
   commonValidateEmailRequest,
 } from '@middleware/index';
 import { logger } from '@utils/logger';
-import { WorkerRequestAdapter, WorkerResponseAdapter } from '@adapters/request-response';
+import { ExpressResponseAdapter, WorkerRequestAdapter, WorkerResponseAdapter } from '@adapters/request-response';
 import { adaptExpressMiddleware, runMiddlewareChain } from '@adapters/middleware-adapter';
 import { 
   healthCheckHandler, 
@@ -53,7 +53,7 @@ const workerHandler = {
       const origin = request.headers.get('Origin');
       
       logger.info(`Worker received ${method} request to ${pathname}`, {
-        origin: origin || 'none',
+        origin: origin ?? 'none',
         headers: JSON.stringify([...request.headers.entries()])
       });
 
@@ -97,7 +97,7 @@ const workerHandler = {
             status: 400,
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': origin || '*',
+              'Access-Control-Allow-Origin': origin ?? '*',
               'Access-Control-Allow-Methods': 'POST',
               'Access-Control-Allow-Headers': 'Content-Type',
             }

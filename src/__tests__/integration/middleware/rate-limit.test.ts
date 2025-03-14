@@ -3,7 +3,7 @@ import request from 'supertest';
 import { Request, Response } from 'express';
 import { createTestContext, TestContext } from '@tests/setup/test-context';
 import { EmailRequestSchema } from '@/schema/email';
-import { rateLimiter } from '@/middleware/rate-limit';
+import { createRateLimiter } from '@/middleware/rate-limiting';
 
 describe('Rate Limiter Integration Tests', () => {
   let testContext: TestContext;

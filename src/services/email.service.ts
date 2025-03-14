@@ -1,8 +1,7 @@
 import { EmailRequestSchema, type EmailRequest } from '@schema/api';
 import { EmailError } from '@utils/errors';
-import { EmailProvider, EmailSendResult } from './email-providers/email-provider.interface';
-import { EmailProviderFactory } from './email-providers/email-provider-factory';
-import { env } from '@config/env';
+import { EmailProviderFactory } from '@services/email-providers/email-provider-factory';
+import { logger } from '@utils/logger';
 
 export interface EmailResponse {
   success: boolean;
@@ -12,81 +11,12 @@ export interface EmailResponse {
   duration?: number;
 }
 
-// Logger function for structured logging
-const log = {
-  info: (message: string, data?: Record<string, unknown>): void => {
-    console.log(
-      JSON.stringify({
-        level: 'info',
-        timestamp: new Date().toISOString(),
-        message,
-        ...data,
-      })
-    );
-  },
-  error: (message: string, error: Error, data?: Record<string, unknown>): void => {
-    console.error(
-      JSON.stringify({
-        level: 'error',
-        timestamp: new Date().toISOString(),
-        message,
-        error: {
-          name: error.name,
-          message: error.message,
-          stack: env.NODE_ENV === 'development' ? error.stack : undefined,
-        },
-        ...data,
-      })
-    );
-  },
-  warn: (message: string, data?: Record<string, unknown>): void => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        timestamp: new Date().toISOString(),
-        message,
-        ...data,
-      })
-    );
-  },
-};
-
+/**
+ * Service for sending emails using configurable providers
+ * This service acts as a facade to the email provider implementations
+ * It doesn't maintain state and delegates to the provider factory for initialization and caching
+ */
 export class EmailService {
-  private provider: EmailProvider | null = null;
-  private isInitialized: boolean = false;
-
-  /**
-   * Creates a new EmailService instance
-   * @param isWorkerEnvironment Whether running in a Cloudflare Worker
-   */
-  constructor(private isWorkerEnvironment = false) {}
-
-  /**
-   * Initializes the email provider
-   * This must be called before using sendEmail in non-worker environments
-   */
-  async initialize(): Promise<void> {
-    try {
-      if (this.isInitialized) {
-        return;
-      }
-
-      this.provider = EmailProviderFactory.createProvider(this.isWorkerEnvironment);
-      
-      // Initialize the provider if it has an initialize method
-      if (this.provider.initialize) {
-        await this.provider.initialize();
-      }
-
-      this.isInitialized = true;
-      log.info('Email service initialized successfully');
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown email configuration error');
-      log.error('Email service initialization failed', err);
-      throw new EmailError(err.message);
-    }
-  }
-
   /**
    * Sends an email using the configured provider
    * @param data The email request data (name, email, message)
@@ -105,26 +35,40 @@ export class EmailService {
       // Validate and sanitize input
       const validatedData = await EmailRequestSchema.parseAsync(data);
       
-      // If we're in a worker environment, or provider is not initialized, create a new provider
-      if (isWorkerEnvironment || !this.provider) {
-        this.provider = EmailProviderFactory.createProvider(isWorkerEnvironment);
-      }
-
-      if (!this.provider) {
-        throw new Error('Email provider not initialized');
-      }
+      // Get the appropriate provider for this environment
+      // The factory handles caching and initialization
+      const provider = await EmailProviderFactory.getProvider(isWorkerEnvironment);
 
       // Send the email using the provider
-      const result = await this.provider.sendEmail(validatedData, ipAddress);
+      const result = await provider.sendEmail(validatedData, ipAddress, isWorkerEnvironment);
       
-      return result;
+      const duration = Date.now() - startTime;
+      
+      if (result.success) {
+        logger.info('Email sent successfully', {
+          recipientEmail: validatedData.email,
+          duration,
+          isWorkerEnvironment,
+        });
+        
+        return {
+          success: true,
+          messageId: result.messageId || undefined,
+          message: 'Email sent successfully',
+          duration
+        };
+      } else {
+        // If the provider returned an error but didn't throw
+        throw result.error || new Error('Unknown error during email sending');
+      }
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
       
-      log.error('Email sending failed', errorInstance, { 
+      logger.error('Email sending failed', errorInstance, { 
         ip: ipAddress,
-        duration
+        duration,
+        isWorkerEnvironment
       });
       
       if (error instanceof EmailError) {
@@ -133,16 +77,5 @@ export class EmailService {
       
       throw new EmailError(errorInstance.message);
     }
-  }
-
-  /**
-   * Closes the provider connection, if necessary
-   */
-  async close(): Promise<void> {
-    if (this.provider && this.provider.close) {
-      await this.provider.close();
-    }
-    this.isInitialized = false;
-    this.provider = null;
   }
 } 

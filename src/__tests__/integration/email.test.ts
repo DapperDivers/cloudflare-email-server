@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import { createTestContext } from '../setup/test-context';
-import { EmailService } from '../../services/email.service';
-import { mockNodemailer } from '../setup/mocks';
+import { createTestContext } from '@tests/setup/test-context';
+import { EmailService } from '@services/email.service';
+import { mockNodemailer } from '@tests/setup/mocks';
 
 describe('Email API', () => {
   let testContext: ReturnType<typeof createTestContext>;

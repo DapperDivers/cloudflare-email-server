@@ -11,7 +11,6 @@ import {
   createRateLimiter, 
   commonEmailRateLimiter
 } from '@middleware/index';
-import { EmailService } from '@services/email.service';
 import { logger } from '@utils/logger';
 import { ExpressRequestAdapter, ExpressResponseAdapter } from '@adapters/request-response';
 import { 
@@ -63,27 +62,6 @@ app.use((req: Request, res: Response, next) => {
   // we need a different approach here - we'll use the middleware directly
   createRateLimiter(env.RATE_LIMIT_WINDOW_MS, env.RATE_LIMIT_MAX)(req, res, next);
 });
-
-// Global email service instance
-let emailService: EmailService;
-
-// Use OAuth2 if client id and refresh token are available, otherwise use password auth
-const setupEmailTransport = async () => {
-  try {
-    emailService = new EmailService();
-    await emailService.initialize();
-    
-    logger.info('Email service configured');
-  } catch (error) {
-    const errorInstance =
-      error instanceof Error ? error : new Error('Unknown email configuration error');
-    logger.error('Email service configuration failed', errorInstance);
-    process.exit(1);
-  }
-};
-
-// Initialize email transport
-setupEmailTransport();
 
 // Health check endpoint - using shared implementation
 app.get('/api/health', (req: Request, res: Response) => {

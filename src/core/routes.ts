@@ -1,10 +1,10 @@
-import { CommonRequest, CommonResponse } from '../adapters/request-response.js';
-import { CommonMiddleware, runMiddlewareChain } from '../adapters/middleware-adapter.js';
-import { EmailService } from '../services/email.service.js';
-import { EmailRequestSchema } from '../schema/api.js';
-import { EmailError } from '../utils/errors.js';
-import { logger } from '../utils/logger.js';
-import { createErrorResponse, handleError } from '../utils/error-handler.js';
+import { CommonRequest, CommonResponse } from '@adapters/request-response';
+import { CommonMiddleware } from '@adapters/middleware-adapter';
+import { EmailService } from '@services/email.service';
+import { EmailRequestSchema } from '@schema/api';
+import { EmailError } from '@utils/errors';
+import { logger } from '@utils/logger';
+import { createErrorResponse, handleError } from '@utils/error-handler';
 
 /**
  * Type for route handlers with common request/response
@@ -40,8 +40,6 @@ export const healthCheckHandler: RouteHandler = async (req: CommonRequest, res: 
  * Email sending route handler
  */
 export const emailHandler: RouteHandler = async (req: CommonRequest, res: CommonResponse) => {
-  const startTime = Date.now();
-
   try {
     // Log incoming email request
     logger.info('Processing email request', {
@@ -52,25 +50,23 @@ export const emailHandler: RouteHandler = async (req: CommonRequest, res: Common
     // Validate and sanitize input (use zod schema)
     const validatedData = await EmailRequestSchema.parseAsync(req.body);
     
+    // Determine if we're in a worker environment (no server property in req)
+    const isWorkerEnvironment = !('server' in req.getOriginalRequest());
+    
     // Create an email service instance and send the email
     const emailService = new EmailService();
     const result = await emailService.sendEmail(
-      validatedData, 
-      req.ip, 
-      // Detect if we're in a worker environment (no server property in req)
-      !('server' in req.getOriginalRequest())
+      validatedData,
+      req.ip,
+      isWorkerEnvironment
     );
-    
-    const duration = Date.now() - startTime;
-    logger.info('Email sent successfully', {
-      recipientEmail: validatedData.email,
-      duration,
-      timestamp: new Date().toISOString(),
-    });
 
+    // Return a successful response with any available details
     res.status(200).json({
       success: true,
-      message: 'Email sent successfully',
+      messageId: result.messageId,
+      message: result.message || 'Email sent successfully',
+      duration: result.duration
     });
   } catch (error: unknown) {
     const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');

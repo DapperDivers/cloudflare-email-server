@@ -1,6 +1,6 @@
 import { EmailRequest } from '@schema/api';
 import { env } from '@config/env';
-import { EmailProvider, EmailSendResult } from './email-provider.interface';
+import { EmailProvider, EmailSendResult } from '@services/email-providers/email-provider.interface';
 import { EmailError } from '@utils/errors';
 
 // Logger function for structured logging
@@ -72,12 +72,23 @@ interface MailChannelsPayload {
  */
 export abstract class MailChannelsProviderBase implements EmailProvider {
   /**
+   * Initializes the provider
+   * For MailChannels, this is a no-op as we don't need long-lived connections
+   */
+  async initialize(): Promise<void> {
+    log.info('Initializing MailChannels provider');
+    // No initialization needed for this provider
+    return Promise.resolve();
+  }
+
+  /**
    * Send an email using MailChannels API
    * @param data Email request data
    * @param ipAddress IP address for logging
+   * @param isWorkerEnvironment Whether this is a worker environment
    * @returns Email send result
    */
-  async sendEmail(data: EmailRequest, ipAddress?: string): Promise<EmailSendResult> {
+  async sendEmail(data: EmailRequest, ipAddress?: string, isWorkerEnvironment = false): Promise<EmailSendResult> {
     const startTime = Date.now();
     
     try {
@@ -85,6 +96,7 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       
       log.info('Processing email request via MailChannels', {
         ip: ipAddress,
+        isWorkerEnvironment,
         timestamp: new Date().toISOString(),
       });
       
@@ -98,10 +110,9 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       const mailchannelsPayload = this.createEmailPayload({
         senderEmail,
         senderDomain,
-        recipientEmail: env.EMAIL_USER,
-        name,
-        email,
-        message
+        recipientName: name,
+        recipientEmail: email,
+        message,
       });
       
       // Allow authentication-specific modifications to the payload
@@ -109,25 +120,24 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       
       // Send the email
       log.info('Sending email via MailChannels...', {
-        to: env.EMAIL_USER,
+        to: email,
         from: senderEmail,
         subject: `New Contact Form Submission from ${name}`,
       });
       
-      const response = await this.sendToMailChannels(mailchannelsPayload);
+      const messageId = await this.sendToMailChannels(mailchannelsPayload);
       
       const duration = Date.now() - startTime;
       
       log.info('Email sent successfully via MailChannels', {
         recipientEmail: email,
         duration,
-        timestamp: new Date().toISOString(),
       });
       
       return {
         success: true,
-        message: 'Email sent successfully',
-        duration,
+        messageId: messageId || `mc-${Date.now()}`,
+        error: null
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -142,7 +152,11 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
         throw error;
       }
       
-      throw new EmailError(errorInstance.message);
+      return {
+        success: false,
+        messageId: null,
+        error: errorInstance
+      };
     }
   }
   
@@ -210,12 +224,11 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
   protected createEmailPayload(params: {
     senderEmail: string;
     senderDomain: string;
+    recipientName: string;
     recipientEmail: string;
-    name: string;
-    email: string;
     message: string;
   }): MailChannelsPayload {
-    const { senderEmail, senderDomain, recipientEmail, name, email, message } = params;
+    const { senderEmail, senderDomain, recipientName, recipientEmail, message } = params;
     
     // Create base payload
     const payload: MailChannelsPayload = {
@@ -228,16 +241,16 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
         email: senderEmail,
         name: 'Contact Form',
       },
-      subject: `New Contact Form Submission from ${name}`,
+      subject: `New Contact Form Submission from ${recipientName}`,
       content: [
         {
           type: "text/plain",
-          value: `Name: ${name}\nEmail: ${email}\nMessage: ${message}`
+          value: `Name: ${recipientName}\nEmail: ${recipientEmail}\nMessage: ${message}`
         }
       ],
       reply_to: {
-        email: email,
-        name: name
+        email: recipientEmail,
+        name: recipientName
       },
       headers: {}
     };
@@ -257,9 +270,10 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
   /**
    * Send the email via the MailChannels API
    * @param payload MailChannels API payload
+   * @returns A promise resolving to the message ID or null if not available
    * @throws Error if the API request fails
    */
-  protected async sendToMailChannels(payload: MailChannelsPayload): Promise<void> {
+  protected async sendToMailChannels(payload: MailChannelsPayload): Promise<string | null> {
     const headers = {
       'Content-Type': 'application/json',
       ...this.getRequestHeaders()
@@ -280,6 +294,15 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       });
       throw new Error(`MailChannels API error: ${response.status} ${errorText}`);
     }
+    
+    try {
+      // Type the JSON response
+      const jsonResponse = await response.json() as { id?: string };
+      return jsonResponse?.id || null;
+    } catch (error) {
+      log.warn('Could not parse JSON response from MailChannels', { error });
+      return null;
+    }
   }
 }
 
@@ -287,6 +310,13 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
  * MailChannels provider using API key authentication
  */
 export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    super();
+    this.apiKey = apiKey;
+  }
+
   /**
    * Validate that the MailChannels API key is available
    * @throws Error if API key is missing
@@ -361,30 +391,29 @@ export class MailChannelsWorkerProvider extends MailChannelsProviderBase {
 }
 
 /**
- * Main MailChannels provider implementation
- * Uses API key authentication when available, falls back to Worker authentication
+ * Legacy MailChannels provider - deprecated in favor of base + specialized implementations
+ * @deprecated Use MailChannelsApiKeyProvider or MailChannelsWorkerProvider instead
  */
 export class MailchannelsProvider implements EmailProvider {
-  private provider: EmailProvider;
-  
-  constructor() {
-    // Determine which authentication method to use
-    if (env.MAILCHANNELS_API_KEY) {
-      log.info('Using MailChannels API key authentication');
-      this.provider = new MailChannelsApiKeyProvider();
-    } else {
-      log.info('Using MailChannels Worker authentication');
-      this.provider = new MailChannelsWorkerProvider();
-    }
-  }
-  
   /**
-   * Send an email using the appropriate MailChannels authentication method
-   * @param data Email request data
-   * @param ipAddress IP address for logging
-   * @returns Email send result
+   * Initializes the provider
+   * For MailChannels, this is a no-op as we don't need long-lived connections
    */
-  async sendEmail(data: EmailRequest, ipAddress?: string): Promise<EmailSendResult> {
-    return this.provider.sendEmail(data, ipAddress);
+  async initialize(): Promise<void> {
+    log.info('Initializing legacy MailChannels provider');
+    // No initialization needed for this provider
+    return Promise.resolve();
+  }
+
+  /**
+   * Send an email using MailChannels API
+   * Uses the worker-specific implementation when in a worker environment
+   */
+  async sendEmail(data: EmailRequest, ipAddress?: string, isWorkerEnvironment = false): Promise<EmailSendResult> {
+    const provider = isWorkerEnvironment
+      ? new MailChannelsWorkerProvider()
+      : new MailChannelsApiKeyProvider(env.MAILCHANNELS_API_KEY || '');
+    
+    return provider.sendEmail(data, ipAddress, isWorkerEnvironment);
   }
 } 

@@ -3,7 +3,7 @@ import { env } from '@config/env';
 import { EmailRequest } from '@schema/api';
 import { EmailError } from '@utils/errors';
 import { createOAuth2Transport } from '@utils/oauth2';
-import { EmailProvider, EmailSendResult } from './email-provider.interface';
+import { EmailProvider, EmailSendResult } from '@services/email-providers/email-provider.interface';
 
 // Logger function for structured logging
 const log = {
@@ -195,9 +195,8 @@ Message: ${message}
 
       return {
         success: true,
-        messageId: info.messageId,
-        message: 'Email sent successfully',
-        duration
+        messageId: info.messageId || null,
+        error: null
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -212,7 +211,11 @@ Message: ${message}
         throw error;
       }
       
-      throw new EmailError(errorInstance.message);
+      return {
+        success: false,
+        messageId: null,
+        error: errorInstance
+      };
     }
   }
 
