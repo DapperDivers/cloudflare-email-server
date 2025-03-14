@@ -8,6 +8,7 @@ import { EmailRequestSchema, type EmailRequest, type ApiResponse } from './schem
 import { EmailError } from './utils/errors.js';
 import { corsHandler } from './middleware/cors-handler.js';
 import { createOAuth2Transport } from './utils/oauth2.js';
+import { EmailService } from './services/email.service.js';
 
 // Logger function for structured logging
 const log = {
@@ -98,46 +99,34 @@ app.use(securityMiddleware);
 // Rate limiting - configurable requests per window per IP (general protection)
 app.use(createRateLimiter(env.RATE_LIMIT_WINDOW_MS, env.RATE_LIMIT_MAX));
 
-// Create email transporter based on configuration
-let transporter: Transporter;
+// Global email service instance
+let emailService: EmailService;
 
 // Use OAuth2 if client id and refresh token are available, otherwise use password auth
 const setupEmailTransport = async () => {
   try {
-    if (env.OAUTH2_CLIENT_ID && env.OAUTH2_CLIENT_SECRET && env.OAUTH2_REFRESH_TOKEN) {
-      log.info('Setting up email transport with OAuth2');
-      transporter = await createOAuth2Transport();
-    } else {
-      log.info('Setting up email transport with password auth');
-      transporter = createTransport({
-        service: env.EMAIL_SERVICE,
-        auth: {
-          user: env.EMAIL_USER,
-          pass: env.EMAIL_PASS,
-        },
-      });
-    }
-
-    // Verify email configuration
-    await transporter.verify();
-    log.info('Email service configured', {
-      service: env.EMAIL_SERVICE,
-      user: env.EMAIL_USER,
-      authType: env.OAUTH2_CLIENT_ID ? 'OAuth2' : 'Password',
-    });
+    emailService = new EmailService();
+    await emailService.initialize();
+    
+    log.info('Email service configured');
   } catch (error) {
     const errorInstance =
       error instanceof Error ? error : new Error('Unknown email configuration error');
-    log.error('Email service configuration failed', errorInstance, {
-      service: env.EMAIL_SERVICE,
-      user: env.EMAIL_USER,
-    });
+    log.error('Email service configuration failed', errorInstance);
     process.exit(1);
   }
 };
 
 // Initialize email transport
 setupEmailTransport();
+
+// Health check endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Wrap async route handler to handle promise rejections
 const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) => {
@@ -171,32 +160,12 @@ app.post(
           timestamp: new Date().toISOString(),
         });
 
-        // Validate and sanitize input
-        const validatedData = await EmailRequestSchema.parseAsync(req.body);
-        const { name, email, message } = validatedData;
-
-        log.info('Email validation passed', {
-          recipientEmail: email,
-          timestamp: new Date().toISOString(),
-        });
-
-        const mailOptions = {
-          from: env.EMAIL_USER,
-          to: env.EMAIL_USER,
-          subject: `New Contact Form Submission from ${name}`,
-          text: `
-Name: ${name}
-Email: ${email}
-Message: ${message}
-        `,
-          replyTo: email,
-        };
-
-        await transporter.sendMail(mailOptions);
-
+        // Use the email service to send the email
+        const result = await emailService.sendEmail(req.body, req.ip);
+        
         const duration = Date.now() - startTime;
         log.info('Email sent successfully', {
-          recipientEmail: email,
+          recipientEmail: req.body.email,
           duration,
           timestamp: new Date().toISOString(),
         });

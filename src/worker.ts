@@ -1,11 +1,9 @@
-import { createTransport } from 'nodemailer';
 import { env } from './config/env.js';
-import { errorHandler } from './middleware/errorHandler.js';
 import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
 import { EmailRequestSchema, type EmailRequest, type ApiResponse } from './schema/api.js';
 import { EmailError } from './utils/errors.js';
 import { corsHandler } from './middleware/cors-handler.js';
-import { createOAuth2Transport } from './utils/oauth2.js';
+import { EmailService } from './services/email.service.js';
 
 // Logger function for structured logging
 const log = {
@@ -52,11 +50,12 @@ class WorkerRequest {
   url: string;
   path: string;
   ip: string;
-  headers: Headers;
+  private _headers: Headers;
   body: any;
   query: Record<string, string>;
   params: Record<string, string>;
   private originalRequest: Request;
+  headersObject: Record<string, string>; // Added for Express compatibility
 
   constructor(request: Request, body: any = null) {
     this.originalRequest = request;
@@ -65,7 +64,7 @@ class WorkerRequest {
     this.url = request.url;
     this.path = url.pathname;
     this.ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-    this.headers = request.headers;
+    this._headers = request.headers;
     this.body = body;
     
     // Parse query parameters
@@ -75,10 +74,45 @@ class WorkerRequest {
     });
     
     this.params = {};
+    
+    // Convert Headers to Express-like headers object
+    this.headersObject = {};
+    request.headers.forEach((value, key) => {
+      this.headersObject[key.toLowerCase()] = value;
+    });
   }
 
   get(name: string): string | null {
-    return this.headers.get(name);
+    return this._headers.get(name);
+  }
+
+  // Express compatibility - read headers object, not Headers instance
+  header(name: string): string | undefined {
+    return this.headersObject[name.toLowerCase()];
+  }
+  
+  // Add Express-compatible headers property access
+  get headers(): Record<string, string> {
+    return this.headersObject;
+  }
+  
+  // Keep the original Headers object from fetch API
+  get rawHeaders(): Headers {
+    return this.originalRequest.headers;
+  }
+  
+  // Ensure we can still use the set accessor for headers
+  set headers(newHeaders: any) {
+    if (newHeaders instanceof Headers) {
+      // If it's a Headers object, convert to Record
+      this.headersObject = {};
+      newHeaders.forEach((value, key) => {
+        this.headersObject[key.toLowerCase()] = value;
+      });
+    } else {
+      // If it's already a Record, just use it
+      this.headersObject = newHeaders;
+    }
   }
 
   // Add other Express-like methods as needed
@@ -224,13 +258,16 @@ async function runMiddlewareChain(
 const requestLoggingMiddleware: ExpressMiddleware = (req, res, next) => {
   const startTime = Date.now();
 
-  // Log request
+  // Log request - safely handle potentially missing headers
+  const origin = req.get('origin') || 'unknown';
+  const userAgent = req.get('user-agent') || 'unknown';
+  
   log.info('Incoming request', {
     method: req.method,
     path: req.path,
     ip: req.ip,
-    origin: req.get('origin'),
-    userAgent: req.get('user-agent'),
+    origin: origin,
+    userAgent: userAgent,
   });
 
   // Log response
@@ -242,7 +279,7 @@ const requestLoggingMiddleware: ExpressMiddleware = (req, res, next) => {
       statusCode: res.statusCode,
       duration,
       ip: req.ip,
-      origin: req.get('origin'),
+      origin: origin,
     });
   });
 
@@ -279,57 +316,39 @@ const handleEmail = asyncHandler(async (req: WorkerRequest, res: WorkerResponse)
   const startTime = Date.now();
 
   try {
-    // Log incoming email request
-    log.info('Processing email request', {
-      ip: req.ip,
-      timestamp: new Date().toISOString(),
-    });
+    // Add CORS headers directly to ensure they're set
+    const origin = req.get('origin') || req.header?.('origin');
+    if (origin) {
+      try {
+        // Extract domains for comparison
+        const originDomain = new URL(origin).hostname;
+        
+        // Handle various CORS_ORIGIN formats
+        let configDomain = env.CORS_ORIGIN;
+        if (configDomain.includes('://')) {
+          configDomain = new URL(configDomain).hostname;
+        }
+        
+        // Allow main domain and email subdomain to communicate
+        const originWithoutPrefix = originDomain.replace(/^(?:email\.)?/, '');
+        const configWithoutPrefix = configDomain.replace(/^(?:email\.)?/, '');
+        
+        if (originWithoutPrefix === configWithoutPrefix) {
+          res.set('Access-Control-Allow-Origin', origin);
+          res.set('Access-Control-Allow-Methods', 'POST');
+          res.set('Access-Control-Allow-Headers', 'Content-Type');
+        }
+      } catch (e) {
+        log.warn('Error parsing origin in email handler', { error: e });
+      }
+    }
 
     // Validate and sanitize input
     const validatedData = await EmailRequestSchema.parseAsync(req.body);
-    const { name, email, message } = validatedData;
-
-    log.info('Email validation passed', {
-      recipientEmail: email,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Set up email transport
-    let transporter;
-    if (env.OAUTH2_CLIENT_ID && env.OAUTH2_CLIENT_SECRET && env.OAUTH2_REFRESH_TOKEN) {
-      log.info('Setting up email transport with OAuth2');
-      transporter = await createOAuth2Transport();
-    } else {
-      log.info('Setting up email transport with password auth');
-      transporter = createTransport({
-        service: env.EMAIL_SERVICE,
-        auth: {
-          user: env.EMAIL_USER,
-          pass: env.EMAIL_PASS,
-        },
-      });
-    }
-
-    const mailOptions = {
-      from: env.EMAIL_USER,
-      to: env.EMAIL_USER,
-      subject: `New Contact Form Submission from ${name}`,
-      text: `
-Name: ${name}
-Email: ${email}
-Message: ${message}
-      `,
-      replyTo: email,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    const duration = Date.now() - startTime;
-    log.info('Email sent successfully', {
-      recipientEmail: email,
-      duration,
-      timestamp: new Date().toISOString(),
-    });
+    
+    // Create an email service instance and send the email
+    const emailService = new EmailService();
+    const result = await emailService.sendEmail(validatedData, req.ip, true);
 
     res.status(200).json({
       success: true,
@@ -362,6 +381,169 @@ const notFoundHandler = (req: WorkerRequest, res: WorkerResponse) => {
 // Cloudflare Worker handler
 export default {
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
+    try {
+      // Headers needed for CORS
+      const origin = request.headers.get('Origin');
+      console.log(`[Worker] Request received from origin: ${origin || 'unknown'}`);
+      
+      // Handle OPTIONS preflight requests immediately
+      if (request.method === 'OPTIONS') {
+        console.log(`[Worker] Handling OPTIONS preflight for origin: ${origin || 'unknown'}`);
+        
+        // Get CORS_ORIGIN from environment
+        const corsOrigin = env.CORS_ORIGIN || '*';
+        console.log(`[Worker] CORS_ORIGIN from env: ${corsOrigin}`);
+        
+        // Allow domains to communicate based on environment variable
+        let isAllowed = false;
+        
+        if (corsOrigin === '*') {
+          isAllowed = true;
+        } else if (origin && origin === corsOrigin) {
+          isAllowed = true;
+        } else if (origin) {
+          try {
+            // Parse domains from origins
+            const originDomain = new URL(origin).hostname;
+            
+            // Handle CORS_ORIGIN with or without protocol
+            const configDomain = corsOrigin.includes('://')
+              ? new URL(corsOrigin).hostname
+              : corsOrigin;
+            
+            // Remove email. prefix if present for comparison  
+            const originWithoutPrefix = originDomain.replace(/^(?:email\.)?/, '');
+            const configWithoutPrefix = configDomain.replace(/^(?:email\.)?/, '');
+            
+            // Allow communication between domain and its email subdomain
+            isAllowed = (originWithoutPrefix === configWithoutPrefix);
+            
+            console.log(`[Worker] Comparing domains: ${originWithoutPrefix} vs ${configWithoutPrefix}, allowed: ${isAllowed}`);
+          } catch (e) {
+            console.log(`[Worker] Error parsing origin: ${e}`);
+          }
+        }
+          
+        console.log(`[Worker] Is origin allowed: ${isAllowed}`);
+        
+        if (isAllowed && origin) {
+          return new Response(null, {
+            status: 204,
+            headers: {
+              'Access-Control-Allow-Origin': origin,
+              'Access-Control-Allow-Methods': 'POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+              'Access-Control-Max-Age': '86400',
+            }
+          });
+        } else {
+          // If not allowed, return 403 Forbidden
+          return new Response(JSON.stringify({ error: 'CORS preflight failed' }), {
+            status: 403,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      }
+
+      // If this is a POST request directly to the API endpoint, handle with nodemailer
+      if (request.method === 'POST' && 
+          (request.url.includes('/api/send-email') || request.url.includes('/api/email'))) {
+        console.log(`[Worker] Direct API POST request detected`);
+        
+        let origin = request.headers.get('Origin');
+        
+        try {
+          // Parse the request body
+          const body = await request.json();
+          console.log(`[Worker] Email request body:`, JSON.stringify(body));
+          
+          // Validate the request format using the schema
+          // Type check the body properties
+          if (!body || typeof body !== 'object') {
+            throw new Error('Invalid request format: body must be an object');
+          }
+          
+          const typedBody = body as Record<string, unknown>;
+          const name = typedBody.name;
+          const email = typedBody.email;
+          const message = typedBody.message;
+          
+          if (!name || typeof name !== 'string' || 
+              !email || typeof email !== 'string' || 
+              !message || typeof message !== 'string') {
+            throw new Error('Invalid request format: missing required fields or invalid types');
+          }
+          
+          const startTime = Date.now();
+          
+          // Create email service and send email
+          const emailService = new EmailService();
+          const result = await emailService.sendEmail(
+            { name, email, message }, 
+            request.headers.get('CF-Connecting-IP') || 'unknown',
+            true
+          );
+          
+          console.log(`[Worker] Email sent successfully in ${result.duration}ms`);
+          
+          // Return success response with CORS headers
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Email sent successfully',
+          }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': origin || '*',
+              'Access-Control-Allow-Methods': 'POST',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            }
+          });
+        } catch (e) {
+          console.error(`[Worker] Error processing email:`, e);
+          
+          // Return error response with CORS headers
+          return new Response(JSON.stringify({ 
+            success: false, 
+            message: 'Failed to send email: ' + (e instanceof Error ? e.message : 'Unknown error')
+          }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': origin || '*',
+              'Access-Control-Allow-Methods': 'POST',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            }
+          });
+        }
+      }
+      
+      // For other requests, continue with original middleware chain approach
+      return await this.processRequest(request, env, ctx);
+    } catch (error) {
+      // Fallback error handling
+      const err = error instanceof Error ? error : new Error('Unknown error in worker');
+      console.error('Unhandled worker error:', err);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Internal Server Error',
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+  },
+
+  // Helper method to process the request normally
+  async processRequest(request: Request, env: any, ctx: any): Promise<Response> {
     try {
       // Parse body if it's a POST/PUT request
       let body = null;
@@ -400,7 +582,7 @@ export default {
         return res.toResponse();
       }
       
-      // Handle OPTIONS requests (CORS preflight)
+      // Handle OPTIONS requests (CORS preflight) - should be caught earlier but just in case
       if (req.method === 'OPTIONS') {
         return res.status(204).toResponse();
       }
@@ -444,5 +626,5 @@ export default {
         }
       );
     }
-  },
+  }
 }; 
