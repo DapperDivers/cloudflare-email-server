@@ -430,7 +430,7 @@ export class MailChannelsProvider implements EmailProvider {
     try {
       // Type the JSON response
       const jsonResponse = (await response.json()) as { id?: string };
-      return jsonResponse?.id || null;
+      return jsonResponse?.id ?? null;
     } catch (error) {
       log.warn('Could not parse JSON response from MailChannels', { error });
       return null;
