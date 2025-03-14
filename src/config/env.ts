@@ -1,6 +1,14 @@
 import { config } from 'dotenv';
 import { z } from 'zod';
 
+// Global variable to store worker environment for access across modules
+let workerEnv: Record<string, any> | null = null;
+
+// Function to set worker environment (called from worker.ts)
+export function setWorkerEnv(env: Record<string, any>): void {
+  workerEnv = env;
+}
+
 // Load environment variables from .env file in Node.js environments
 // In Cloudflare Workers, environment variables are injected differently
 if (typeof process !== 'undefined' && process.env) {
@@ -9,11 +17,17 @@ if (typeof process !== 'undefined' && process.env) {
 
 // Helper to access environment variables that works in both Node.js and Cloudflare Workers
 const getEnvVar = (key: string): string | undefined => {
-  // Check if we're in a Cloudflare Worker environment
+  // First check if we have worker environment
+  if (workerEnv && key in workerEnv) {
+    return workerEnv[key];
+  }
+  
+  // Then check if we're in Cloudflare Worker environment
   if (typeof process === 'undefined' || !process.env) {
     // Use the globalThis object which works in both browser and worker contexts
     return (globalThis as any)[key];
   }
+  
   return process.env[key];
 };
 
@@ -36,6 +50,10 @@ const envSchema = z.object({
   OAUTH2_CLIENT_SECRET: z.string().optional(),
   OAUTH2_REFRESH_TOKEN: z.string().optional(),
   OAUTH2_ACCESS_TOKEN: z.string().optional(),
+  
+  // Email provider configuration
+  EMAIL_PROVIDER: z.enum(['nodemailer', 'mailchannels']).default('nodemailer'),
+  DKIM_PRIVATE_KEY: z.string().optional(),
   
   // CORS configuration
   CORS_ORIGIN: z.string().default('*'),
@@ -97,6 +115,13 @@ const validateEnv = (): z.infer<typeof envSchema> => {
 
 // Export validated environment variables
 export const env = validateEnv();
+
+// Function to update environment after it's been set initially
+// This is useful for Cloudflare Worker environment where env is passed to fetch
+export function updateEnv(): void {
+  // Re-validate with potentially new worker environment
+  Object.assign(env, validateEnv());
+}
 
 // Type definition for environment variables
 export type Env = z.infer<typeof envSchema>;

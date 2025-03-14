@@ -30,6 +30,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@cloudflare/pages-plugin-mailchannels": "^0.1.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "eslint-plugin-vitest-globals": "^1.5.0",

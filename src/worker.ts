@@ -1,4 +1,4 @@
-import { env } from './config/env.js';
+import { env, setWorkerEnv, updateEnv } from './config/env.js';
 import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
 import { EmailRequestSchema, type EmailRequest, type ApiResponse } from './schema/api.js';
 import { EmailError } from './utils/errors.js';
@@ -382,6 +382,21 @@ const notFoundHandler = (req: WorkerRequest, res: WorkerResponse) => {
 export default {
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
     try {
+      // Set worker environment variables to make them available across modules
+      setWorkerEnv(env);
+      updateEnv();
+      
+      // Log environment for debugging
+      console.log(`[Worker] Environment variables:
+        EMAIL_SERVICE: ${env.EMAIL_SERVICE || 'not set'}
+        EMAIL_USER: ${env.EMAIL_USER || 'not set'}
+        EMAIL_PROVIDER: ${env.EMAIL_PROVIDER || 'nodemailer'}
+        OAUTH2_CLIENT_ID: ${env.OAUTH2_CLIENT_ID ? 'is set' : 'not set'}
+        OAUTH2_CLIENT_SECRET: ${env.OAUTH2_CLIENT_SECRET ? 'is set' : 'not set'}
+        OAUTH2_REFRESH_TOKEN: ${env.OAUTH2_REFRESH_TOKEN ? 'is set' : 'not set'}
+        DKIM_PRIVATE_KEY: ${env.DKIM_PRIVATE_KEY ? 'is set' : 'not set'}
+      `);
+      
       // Headers needed for CORS
       const origin = request.headers.get('Origin');
       console.log(`[Worker] Request received from origin: ${origin || 'unknown'}`);
