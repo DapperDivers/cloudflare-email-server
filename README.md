@@ -1,179 +1,142 @@
 # Cloudflare Email Server
 
-A secure and efficient email server built with Express.js and TypeScript, designed to handle contact form submissions and email notifications.
+A robust email server implementation using Node.js Express and Cloudflare Workers, organized as a monorepo.
 
-## Features
+## Project Structure
 
-- Secure email handling with rate limiting
-- Input validation and sanitization
-- CORS protection
-- Structured logging
-- TypeScript support
-- Comprehensive error handling
-- Environment-based configuration
+This project is organized as a monorepo with the following packages:
 
-## Prerequisites
-
-- Node.js (v18 or higher)
-- npm or yarn
-- A Cloudflare account (for deployment)
+- **packages/express-server**: Node.js Express server for email handling
+- **packages/worker**: Cloudflare Worker for lightweight, edge-based email processing
+- **packages/shared**: Shared code, types, and utilities used by both implementations
 
 ## Setup
 
-1. Clone the repository:
+### Prerequisites
+
+- Node.js 18+ and npm installed
+- Cloudflare account (for Worker deployment)
+
+### Initial Setup
+
 ```bash
+# Clone the repository
 git clone https://github.com/yourusername/cloudflare-email-server.git
 cd cloudflare-email-server
-```
 
-2. Install dependencies:
-```bash
+# Install dependencies and set up monorepo
 npm install
+npm run setup-monorepo
 ```
 
-3. Create a `.env` file based on `.env.example`:
-```bash
-cp .env.example .env
-```
+The setup script will:
+1. Create the necessary workspace directories
+2. Generate package.json files for each workspace
+3. Migrate source code to the appropriate directories
+4. Configure build tools
 
-4. Configure your environment variables in `.env`:
-```env
-NODE_ENV=development
+### Environment Variables
+
+Create `.env` files in each workspace directory based on the provided `.env.example` files:
+
+**Express Server (packages/express-server/.env)**
+```
 PORT=3000
-CORS_ORIGIN=https://your-domain.com
-EMAIL_SERVICE=gmail
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-specific-password
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=5
+NODE_ENV=development
+EMAIL_FROM=your-email@example.com
+EMAIL_SUBJECT="Contact Form Submission"
+
+# For production, uncomment and fill these:
+# SMTP_HOST=smtp.example.com
+# SMTP_PORT=587
+# SMTP_USER=your-smtp-user
+# SMTP_PASS=your-smtp-password
+```
+
+**Worker (packages/worker/.env)**
+```
+EMAIL_FROM=your-email@example.com
+EMAIL_TO=your-email@example.com
+MAILCHANNELS_API_KEY=your-api-key-here
 ```
 
 ## Development
 
-Start the development server:
-```bash
-npm run dev
-```
-
-## Testing
-
-Run tests:
-```bash
-npm test
-```
-
-Watch mode:
-```bash
-npm run test:watch
-```
-
-## Deployment
-
-1. Build the project:
-```bash
-npm run build
-```
-
-2. Deploy to Cloudflare Workers:
-```bash
-npm run deploy
-```
-
-## Cloudflare Workers Deployment
-
-This project is configured to deploy to Cloudflare Workers using Wrangler.
-
-### Prerequisites
-
-- Node.js 20+
-- npm
-- A Cloudflare account with Workers enabled
-- Wrangler CLI installed and authenticated
-
-### Set Up
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Set up environment variables:
-   ```bash
-   npm run worker:secrets
-   ```
-   This will prompt you to enter values for:
-   - EMAIL_USER
-   - EMAIL_PASS
-   - CORS_ORIGIN
-   - EMAIL_SERVICE
-
-### Development
-
-To run the worker in development mode:
+### Express Server
 
 ```bash
-npm run worker:dev
+# Start development server
+npm run dev --workspace=packages/express-server
+
+# Build for production
+npm run build --workspace=packages/express-server
+
+# Start production server
+npm run start --workspace=packages/express-server
 ```
 
-This will start a local development server that mimics the Cloudflare Workers environment.
-
-### Deployment
-
-To deploy to Cloudflare Workers:
+### Cloudflare Worker
 
 ```bash
-# Default environment
-npm run worker:deploy
+# Start worker in development mode
+npm run dev --workspace=packages/worker
 
-# Production environment
-npm run worker:deploy:production
+# Build worker for deployment
+npm run build --workspace=packages/worker
 
-# Staging environment
-npm run worker:deploy:staging
+# Deploy worker to Cloudflare
+npm run deploy --workspace=packages/worker
 ```
 
-### Configuration
+### Shared Package
 
-The worker configuration is defined in `wrangler.toml`. You can modify this file to change settings like:
-
-- Worker name
-- Environment variables
-- Deployment targets
-- Triggers
-
-For more information about Wrangler configuration, see the [Wrangler documentation](https://developers.cloudflare.com/workers/wrangler/configuration/).
-
-## API Endpoints
-
-### POST /api/send-email
-
-Send an email through the contact form.
-
-Request body:
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "message": "Hello, this is a test message."
-}
+```bash
+# Build shared package
+npm run build --workspace=packages/shared
 ```
 
-Response:
-```json
-{
-  "success": true,
-  "message": "Email sent successfully"
-}
+## Building All Packages
+
+```bash
+# Build everything
+npm run build:all
 ```
 
-## Security Features
+## Worker Deployment
 
-- Rate limiting to prevent abuse
-- CORS protection
-- Input validation and sanitization
-- Security headers
-- Error handling and logging
+The Cloudflare Worker can be deployed to different environments:
+
+```bash
+# Deploy to production
+npm run deploy:production --workspace=packages/worker
+
+# Deploy to staging
+npm run deploy:staging --workspace=packages/worker
+```
+
+Make sure to configure your `wrangler.toml` file with the appropriate environment settings.
+
+## Features
+
+- **Express Server**:
+  - Rate limiting
+  - Input validation
+  - SMTP email sending
+  - Security headers and protection
+
+- **Cloudflare Worker**:
+  - Lightweight email processing at the edge
+  - MailChannels integration
+  - Fast global performance
+
+## Bundle Optimization
+
+The project is designed to create minimal bundles, especially for the Cloudflare Worker where bundle size impacts performance and pricing. The shared code approach ensures that:
+
+1. Only necessary dependencies are included in each bundle
+2. Code is not duplicated between implementations
+3. Type safety is maintained through the shared package
 
 ## License
 
-ISC 
+MIT 

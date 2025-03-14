@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "baseUrl": "./src",
+    "emitDeclarationOnly": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@utils/*": ["./utils/*"],
+      "@types/*": ["./types/*"],
+      "@tests/*": ["./__tests__/*"],
+      "@services/*": ["./services/*"],
+      "@config/*": ["./config/*"],
+      "@adapters/*": ["./adapters/*"],
+      "@middleware/*": ["./middleware/*"],
+      "@schema/*": ["./schema/*"]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

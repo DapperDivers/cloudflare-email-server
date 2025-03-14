@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-worker",
+    "baseUrl": ".",
+    "lib": ["ES2022", "WebWorker"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@services/*": ["./src/services/*"],
+      "@middleware/*": ["./src/middleware/*"],
+      "@config/*": ["./src/config/*"],
+      "@tests/*": ["./src/__tests__/*"],
+      "@types/*": ["./src/types/*"],
+      "@schema/*": ["./src/schema/*"],
+      "@adapters/*": ["./src/adapters/*"],
+      "shared": ["../shared/src"],
+      "shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/**/*", "*.ts"]
+}

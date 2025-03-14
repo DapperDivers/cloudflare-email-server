@@ -1,0 +1,6 @@
+{
+  "extends": ["../../.eslintrc.json"],
+  "rules": {
+    // Package-specific rules can be added here
+  }
+}

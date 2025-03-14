@@ -4,26 +4,26 @@
     "node": true,
     "es2020": true
   },
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": ["./tsconfig.json", "./tsconfig.test.json"],
     "ecmaVersion": 2020,
     "sourceType": "module"
   },
-  "plugins": ["@typescript-eslint"],
+  "plugins": ["@typescript-eslint", "import"],
   "rules": {
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "off",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "no-console": ["error", { 
-      "allow": ["log", "error", "warn"]
-    }],
-    "import/order": [
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/ban-types": "warn",
+    "no-console": [
       "error",
+      {
+        "allow": ["log", "error", "warn"]
+      }
+    ],
+    "import/order": [
+      "warn",
       {
         "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
         "newlines-between": "always",
@@ -36,20 +36,34 @@
   },
   "settings": {
     "import/resolver": {
-      "typescript": {
-        "project": "./tsconfig.json"
-      },
-      "node": true
+      "node": true,
+      "typescript": {}
     }
   },
   "overrides": [
     {
       "files": ["**/*.test.ts", "**/__tests__/**/*"],
       "env": {
-        "vitest-globals/env": true
-      },
-      "plugins": ["vitest"],
-      "extends": ["plugin:vitest/recommended"]
+        "jest": true
+      }
+    },
+    {
+      "files": ["packages/express-server/**/*.ts"],
+      "parserOptions": {
+        "project": ["./packages/express-server/tsconfig.json"]
+      }
+    },
+    {
+      "files": ["packages/worker/**/*.ts"],
+      "parserOptions": {
+        "project": ["./packages/worker/tsconfig.json"]
+      }
+    },
+    {
+      "files": ["packages/shared/**/*.ts"],
+      "parserOptions": {
+        "project": ["./packages/shared/tsconfig.json"]
+      }
     }
   ]
-} 
+}

@@ -1,0 +1,42 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist-worker/worker.js",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rm -rf dist-worker",
+    "dev": "wrangler dev worker.ts",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:production": "npm run build && wrangler deploy --env production",
+    "deploy:staging": "npm run build && wrangler deploy --env staging",
+    "lint": "eslint \"**/*.ts\"",
+    "lint:fix": "eslint --fix \"**/*.ts\"",
+    "format": "prettier --write \"**/*.{ts,js,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json}\"",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@cloudflare/pages-plugin-mailchannels": "^0.1.5",
+    "zod": "^3.24.2",
+    "shared": "1.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250313.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.8.6",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3",
+    "typescript": "^5.5.3",
+    "vite": "^6.2.1",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.0.8",
+    "wrangler": "^4.0.0"
+  }
+}

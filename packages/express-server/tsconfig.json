@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"],
+      "@core/*": ["./core/*"],
+      "@utils/*": ["./utils/*"],
+      "@services/*": ["./services/*"],
+      "@middleware/*": ["./middleware/*"],
+      "@config/*": ["./config/*"],
+      "@tests/*": ["./__tests__/*"],
+      "@types/*": ["./types/*"],
+      "@schema/*": ["./schema/*"],
+      "@adapters/*": ["./adapters/*"],
+      "shared": ["../shared/src"],
+      "shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

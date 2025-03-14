@@ -1,35 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
+    "moduleResolution": "Bundler",
     "esModuleInterop": true,
+    "strict": true,
     "skipLibCheck": true,
+    "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
     "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@tests/*": ["src/__tests__/*"],
-      "@middleware/*": ["src/middleware/*"],
-      "@core/*": ["src/core/*"],
-      "@adapters/*": ["src/adapters/*"],
-      "@utils/*": ["src/utils/*"],
-      "@config/*": ["src/config/*"],
-      "@schema/*": ["src/schema/*"],
-      "@services/*": ["src/services/*"]
-    },
-    "types": ["node", "vitest/globals"]
-  },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
-} 
+      "shared": ["packages/shared/src"],
+      "shared/*": ["packages/shared/src/*"]
+    }
+  }
+}
