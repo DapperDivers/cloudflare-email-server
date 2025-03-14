@@ -26,6 +26,15 @@ RATE_LIMIT_MAX = "50"              # 50 requests per window
 EMAIL_RATE_LIMIT_WINDOW_MS = "86400000"  # 24 hours in milliseconds
 EMAIL_RATE_LIMIT_MAX = "2"          # 2 emails per window
 
+# Logging configuration
+[logs]
+# Send logs to Cloudflare's log service
+format = "json"  # Structured JSON logging as per project requirements
+
+# Production logging
+[env.production.logs]
+level = "warn"   # Only log warnings and errors in production
+
 
 # Binding configuration for environment variables
 # To add secrets, run:
