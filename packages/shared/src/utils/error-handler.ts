@@ -1,8 +1,9 @@
-import { env } from '@config/env';
-import { ErrorCode, ApiResponse } from '@schema/api';
-import { AppError } from '@utils/errors';
-import { logger } from '@utils/logger';
 import { ZodError } from 'zod';
+
+import { env } from '@shared-config/env';
+import { ErrorCode } from '@shared-schema/api';
+import { AppError } from '@shared-utils/errors';
+import { logger } from '@shared-utils/logger';
 
 /**
  * Standard error response format for the API
@@ -34,7 +35,7 @@ export function createErrorResponse(err: Error): { status: number; body: ErrorRe
           code: ErrorCode.VALIDATION_ERROR,
           details: err.errors,
         },
-      }
+      },
     };
   }
 
@@ -49,7 +50,7 @@ export function createErrorResponse(err: Error): { status: number; body: ErrorRe
           code: err.code,
           details: err.details,
         },
-      }
+      },
     };
   }
 
@@ -63,7 +64,7 @@ export function createErrorResponse(err: Error): { status: number; body: ErrorRe
         code: ErrorCode.SERVER_ERROR,
         details: env.NODE_ENV === 'development' ? err.message : undefined,
       },
-    }
+    },
   };
 }
 
@@ -72,4 +73,4 @@ export function createErrorResponse(err: Error): { status: number; body: ErrorRe
  */
 export function handleError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));
-} 
+}

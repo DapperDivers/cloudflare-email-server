@@ -1,9 +1,13 @@
-import { env } from '@config/env';
-import { EmailRequest } from '@schema/api';
-import { EmailProvider, EmailSendResult } from '@services/email-providers/email-provider.interface';
-import { EmailError } from '@utils/errors';
-import { createOAuth2Transport } from '@utils/oauth2';
 import nodemailer, { Transporter } from 'nodemailer';
+
+import { env } from '@shared-config/env';
+import { EmailRequest } from '@shared-schema/api';
+import {
+  EmailProvider,
+  EmailSendResult,
+} from '@shared-services/email-providers/email-provider.interface';
+import { EmailError } from '@shared-utils/errors';
+import { createOAuth2Transport } from '@shared-utils/oauth2';
 
 // Logger function for structured logging
 const log = {
@@ -71,7 +75,9 @@ export class NodemailerProvider implements EmailProvider {
       }
 
       if (!env.OAUTH2_CLIENT_ID || !env.OAUTH2_CLIENT_SECRET || !env.OAUTH2_REFRESH_TOKEN) {
-        const err = new Error('OAuth2 credentials missing. This provider requires OAuth2 authentication.');
+        const err = new Error(
+          'OAuth2 credentials missing. This provider requires OAuth2 authentication.'
+        );
         log.error('Email service configuration failed', err, {
           service: env.EMAIL_SERVICE,
           user: env.EMAIL_USER,
@@ -107,7 +113,9 @@ export class NodemailerProvider implements EmailProvider {
    */
   private createWorkerTransport(): Transporter {
     if (!env.OAUTH2_CLIENT_ID || !env.OAUTH2_CLIENT_SECRET || !env.OAUTH2_REFRESH_TOKEN) {
-      const err = new Error('OAuth2 credentials missing. This provider requires OAuth2 authentication.');
+      const err = new Error(
+        'OAuth2 credentials missing. This provider requires OAuth2 authentication.'
+      );
       log.error('Email service configuration failed', err, {
         service: env.EMAIL_SERVICE,
         user: env.EMAIL_USER,
@@ -155,8 +163,8 @@ export class NodemailerProvider implements EmailProvider {
       }
 
       // In worker environment, create a new transporter each time
-      const transporter = this.isWorkerEnvironment 
-        ? this.createWorkerTransport() 
+      const transporter = this.isWorkerEnvironment
+        ? this.createWorkerTransport()
         : this.transporter;
 
       if (!transporter) {
@@ -177,15 +185,15 @@ Message: ${message}
       };
 
       // Send email
-      log.info('Sending email via Nodemailer...', { 
+      log.info('Sending email via Nodemailer...', {
         to: env.EMAIL_USER,
         from: env.EMAIL_USER,
-        subject: mailOptions.subject 
+        subject: mailOptions.subject,
       });
-      
+
       const info = await transporter.sendMail(mailOptions);
       const duration = Date.now() - startTime;
-      
+
       log.info('Email sent successfully via Nodemailer', {
         recipientEmail: email,
         duration,
@@ -196,25 +204,25 @@ Message: ${message}
       return {
         success: true,
         messageId: info.messageId || null,
-        error: null
+        error: null,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
-      
-      log.error('Email sending failed', errorInstance, { 
+
+      log.error('Email sending failed', errorInstance, {
         ip: ipAddress,
-        duration
+        duration,
       });
-      
+
       if (error instanceof EmailError) {
         throw error;
       }
-      
+
       return {
         success: false,
         messageId: null,
-        error: errorInstance
+        error: errorInstance,
       };
     }
   }
@@ -229,4 +237,4 @@ Message: ${message}
     this.isInitialized = false;
     this.transporter = null;
   }
-} 
+}

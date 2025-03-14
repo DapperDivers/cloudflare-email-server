@@ -1,11 +1,16 @@
 name = "emailworker"
-main = "dist-worker/worker.js"
-compatibility_flags = [ "nodejs_compat" ]
+main = "dist/worker.js"
 compatibility_date = "2024-09-23"
+
+# Disable Node.js compatibility for smaller bundle size
+# compatibility_flags = [ "nodejs_compat" ]
+
+# Use our custom bundled version
+no_bundle = true
 
 # Additional settings to handle larger worker bundles
 usage_model = "bundled"
-minify = true
+minify = false  # We're already minifying with esbuild
 
 # Specify triggers
 [triggers]

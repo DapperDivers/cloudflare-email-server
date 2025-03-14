@@ -7,17 +7,15 @@
     "emitDeclarationOnly": true,
     "paths": {
       "@/*": ["./*"],
-      "@utils/*": ["./utils/*"],
-      "@types/*": ["./types/*"],
-      "@tests/*": ["./__tests__/*"],
-      "@services/*": ["./services/*"],
-      "@config/*": ["./config/*"],
-      "@adapters/*": ["./adapters/*"],
-      "@middleware/*": ["./middleware/*"],
-      "@schema/*": ["./schema/*"]
+      "@shared-utils/*": ["./utils/*"],
+      "@shared-types/*": ["./types/*"],
+      "@shared-tests/*": ["./__tests__/*"],
+      "@shared-services/*": ["./services/*"],
+      "@shared-config/*": ["./config/*"],
+      "@shared-adapters/*": ["./adapters/*"],
+      "@shared-middleware/*": ["./middleware/*"],
+      "@shared-schema/*": ["./schema/*"]
     }
   },
-  "include": [
-    "src/**/*"
-  ]
+  "include": ["src/**/*"]
 }

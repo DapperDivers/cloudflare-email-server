@@ -1,7 +1,10 @@
-import { env } from '@config/env';
-import { EmailRequest } from '@schema/api';
-import { EmailProvider, EmailSendResult } from '@services/email-providers/email-provider.interface';
-import { EmailError } from '@utils/errors';
+import { env } from '@shared-config/env';
+import { EmailRequest } from '@shared-schema/api';
+import {
+  EmailProvider,
+  EmailSendResult,
+} from '@shared-services/email-providers/email-provider.interface';
+import { EmailError } from '@shared-utils/errors';
 
 // Logger function for structured logging
 const log = {
@@ -88,24 +91,28 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
    * @param isWorkerEnvironment Whether this is a worker environment
    * @returns Email send result
    */
-  async sendEmail(data: EmailRequest, ipAddress?: string, isWorkerEnvironment = false): Promise<EmailSendResult> {
+  async sendEmail(
+    data: EmailRequest,
+    ipAddress?: string,
+    isWorkerEnvironment = false
+  ): Promise<EmailSendResult> {
     const startTime = Date.now();
-    
+
     try {
       const { name, email, message } = data;
-      
+
       log.info('Processing email request via MailChannels', {
         ip: ipAddress,
         isWorkerEnvironment,
         timestamp: new Date().toISOString(),
       });
-      
+
       // Perform any authentication-specific validation
       this.validateAuthentication();
-      
+
       // Determine sender information
       const { senderEmail, senderDomain } = this.getSenderInfo();
-      
+
       // Create the email payload
       const mailchannelsPayload = this.createEmailPayload({
         senderEmail,
@@ -114,70 +121,70 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
         recipientEmail: email,
         message,
       });
-      
+
       // Allow authentication-specific modifications to the payload
       this.modifyPayload(mailchannelsPayload);
-      
+
       // Send the email
       log.info('Sending email via MailChannels...', {
         to: email,
         from: senderEmail,
         subject: `New Contact Form Submission from ${name}`,
       });
-      
+
       const messageId = await this.sendToMailChannels(mailchannelsPayload);
-      
+
       const duration = Date.now() - startTime;
-      
+
       log.info('Email sent successfully via MailChannels', {
         recipientEmail: email,
         duration,
       });
-      
+
       return {
         success: true,
         messageId: messageId || `mc-${Date.now()}`,
-        error: null
+        error: null,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
-      
+
       log.error('Email sending failed', errorInstance, {
         ip: ipAddress,
         duration,
       });
-      
+
       if (error instanceof EmailError) {
         throw error;
       }
-      
+
       return {
         success: false,
         messageId: null,
-        error: errorInstance
+        error: errorInstance,
       };
     }
   }
-  
+
   /**
    * Validate that authentication requirements are met
    * @throws Error if authentication requirements are not met
    */
   protected abstract validateAuthentication(): void;
-  
+
   /**
    * Allow authentication-specific modifications to the payload
    * @param payload The MailChannels payload to modify
    */
   protected abstract modifyPayload(payload: MailChannelsPayload): void;
-  
+
   /**
    * Get headers for the MailChannels API request
    * @returns Headers for the API request
    */
   protected abstract getRequestHeaders(): Record<string, string>;
-  
+
   /**
    * Determine sender email and domain based on environment configuration
    * @returns Object containing sender email and domain
@@ -185,37 +192,39 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
   protected getSenderInfo(): { senderEmail: string; senderDomain: string } {
     let senderDomain: string;
     let senderEmail: string;
-    
+
     // First determine the domain
     if (env.MAILCHANNELS_SENDER_DOMAIN) {
       senderDomain = env.MAILCHANNELS_SENDER_DOMAIN;
       log.info('Using configured sender domain', { domain: senderDomain });
     } else {
       // Extract domain from CORS_ORIGIN as fallback
-      const corsUrl = new URL(env.CORS_ORIGIN.startsWith('http') ? env.CORS_ORIGIN : `https://${env.CORS_ORIGIN}`);
+      const corsUrl = new URL(
+        env.CORS_ORIGIN.startsWith('http') ? env.CORS_ORIGIN : `https://${env.CORS_ORIGIN}`
+      );
       senderDomain = corsUrl.hostname;
       log.info('Using domain from CORS_ORIGIN for email sending', { domain: senderDomain });
     }
-    
+
     // Then determine the email
     if (env.MAILCHANNELS_SENDER_EMAIL) {
       senderEmail = env.MAILCHANNELS_SENDER_EMAIL;
-      
+
       // Update domain to match the email domain for DKIM signing
       senderDomain = senderEmail.split('@')[1];
-      
-      log.info('Using configured sender email and its domain', { 
+
+      log.info('Using configured sender email and its domain', {
         email: senderEmail,
-        domain: senderDomain
+        domain: senderDomain,
       });
     } else {
       senderEmail = `noreply@${senderDomain}`;
       log.info('Using generated sender email', { email: senderEmail });
     }
-    
+
     return { senderEmail, senderDomain };
   }
-  
+
   /**
    * Create the email payload for the MailChannels API
    * @param params Object containing email parameters
@@ -229,7 +238,7 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
     message: string;
   }): MailChannelsPayload {
     const { senderEmail, senderDomain, recipientName, recipientEmail, message } = params;
-    
+
     // Create base payload
     const payload: MailChannelsPayload = {
       personalizations: [
@@ -244,29 +253,29 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       subject: `New Contact Form Submission from ${recipientName}`,
       content: [
         {
-          type: "text/plain",
-          value: `Name: ${recipientName}\nEmail: ${recipientEmail}\nMessage: ${message}`
-        }
+          type: 'text/plain',
+          value: `Name: ${recipientName}\nEmail: ${recipientEmail}\nMessage: ${message}`,
+        },
       ],
       reply_to: {
         email: recipientEmail,
-        name: recipientName
+        name: recipientName,
       },
-      headers: {}
+      headers: {},
     };
-    
+
     // Add DKIM if available
     if (env.DKIM_PRIVATE_KEY) {
       payload.dkim_domain = senderDomain;
-      payload.dkim_selector = "mailchannels";
+      payload.dkim_selector = 'mailchannels';
       payload.dkim_private_key = env.DKIM_PRIVATE_KEY;
-      
+
       log.info('DKIM configuration added', { domain: senderDomain });
     }
-    
+
     return payload;
   }
-  
+
   /**
    * Send the email via the MailChannels API
    * @param payload MailChannels API payload
@@ -276,28 +285,28 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
   protected async sendToMailChannels(payload: MailChannelsPayload): Promise<string | null> {
     const headers = {
       'Content-Type': 'application/json',
-      ...this.getRequestHeaders()
+      ...this.getRequestHeaders(),
     };
-    
+
     const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       log.error('MailChannels API error details', new Error(errorText), {
         status: response.status,
         statusText: response.statusText,
-        url: response.url
+        url: response.url,
       });
       throw new Error(`MailChannels API error: ${response.status} ${errorText}`);
     }
-    
+
     try {
       // Type the JSON response
-      const jsonResponse = await response.json() as { id?: string };
+      const jsonResponse = (await response.json()) as { id?: string };
       return jsonResponse?.id || null;
     } catch (error) {
       log.warn('Could not parse JSON response from MailChannels', { error });
@@ -323,24 +332,26 @@ export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
    */
   protected validateAuthentication(): void {
     if (!env.MAILCHANNELS_API_KEY) {
-      throw new Error('MailChannels API key is missing. Please set the MAILCHANNELS_API_KEY environment variable.');
+      throw new Error(
+        'MailChannels API key is missing. Please set the MAILCHANNELS_API_KEY environment variable.'
+      );
     }
   }
-  
+
   /**
    * API Key authentication doesn't require payload modifications
    */
   protected modifyPayload(payload: MailChannelsPayload): void {
     // No modifications needed for API key authentication
   }
-  
+
   /**
    * Get headers for API key authentication
    * @returns Headers for the API request
    */
   protected getRequestHeaders(): Record<string, string> {
     return {
-      'X-API-Key': env.MAILCHANNELS_API_KEY!
+      'X-API-Key': env.MAILCHANNELS_API_KEY!,
     };
   }
 }
@@ -350,23 +361,23 @@ export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
  */
 export class MailChannelsWorkerProvider extends MailChannelsProviderBase {
   private readonly workerId: string;
-  
+
   /**
    * Create a new MailChannelsWorkerProvider
    * @param workerId The Cloudflare Worker ID for domain lockdown authentication
    */
-  constructor(workerId: string = "email.saraengland.com") {
+  constructor(workerId: string = 'email.saraengland.com') {
     super();
     this.workerId = workerId;
   }
-  
+
   /**
    * No specific validation for Worker authentication
    */
   protected validateAuthentication(): void {
     // No validation needed for Worker authentication
   }
-  
+
   /**
    * Add Worker ID to the payload headers
    * @param payload The MailChannels payload to modify
@@ -376,11 +387,11 @@ export class MailChannelsWorkerProvider extends MailChannelsProviderBase {
     if (!payload.headers) {
       payload.headers = {};
     }
-    
+
     // Add Worker ID header
-    payload.headers["X-Mailchannels-Worker-ID"] = this.workerId;
+    payload.headers['X-Mailchannels-Worker-ID'] = this.workerId;
   }
-  
+
   /**
    * No special headers for Worker authentication
    * @returns Empty headers object
@@ -409,11 +420,15 @@ export class MailchannelsProvider implements EmailProvider {
    * Send an email using MailChannels API
    * Uses the worker-specific implementation when in a worker environment
    */
-  async sendEmail(data: EmailRequest, ipAddress?: string, isWorkerEnvironment = false): Promise<EmailSendResult> {
+  async sendEmail(
+    data: EmailRequest,
+    ipAddress?: string,
+    isWorkerEnvironment = false
+  ): Promise<EmailSendResult> {
     const provider = isWorkerEnvironment
       ? new MailChannelsWorkerProvider()
       : new MailChannelsApiKeyProvider(env.MAILCHANNELS_API_KEY || '');
-    
+
     return provider.sendEmail(data, ipAddress, isWorkerEnvironment);
   }
-} 
+}

@@ -3,24 +3,23 @@
  * This file works as both the Vite development entry point and the Express server
  */
 
+import express, { json, Request, Response, NextFunction } from 'express';
 import {
   healthCheckHandler,
   emailHandler,
   notFoundHandler,
   requestLoggingMiddleware,
-} from '@core/routes';
-import { env } from '@shared/src/config/env';
-import { logger } from '@shared/src/utils/logger';
-import express, { json, Request, Response, NextFunction } from 'express';
+} from 'shared/src/core/routes';
+import { commonErrorHandler } from 'shared/src/middleware/error-handler';
+import { logger } from 'shared/src/utils/logger';
 
 import { ExpressRequestAdapter, ExpressResponseAdapter } from '@adapters/request-response';
+import { env } from '@config/env';
 import {
-  commonErrorHandler,
   createSecurityMiddleware,
   createRateLimiter,
   commonEmailRateLimiter,
 } from '@middleware/index';
-
 // Create Express application
 const app = express();
 

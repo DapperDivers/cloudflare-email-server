@@ -1,6 +1,7 @@
-import { env } from '@config/env';
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
+
+import { env } from '@shared-config/env';
 
 // Create OAuth2 client
 const createOAuth2Client = () => {
@@ -12,7 +13,7 @@ const createOAuth2Client = () => {
 
   // Set refresh token
   oauth2Client.setCredentials({
-    refresh_token: env.OAUTH2_REFRESH_TOKEN
+    refresh_token: env.OAUTH2_REFRESH_TOKEN,
   });
 
   return oauth2Client;
@@ -26,11 +27,11 @@ export const getAccessToken = async (): Promise<string> => {
   try {
     const oauth2Client = createOAuth2Client();
     const { token } = await oauth2Client.getAccessToken();
-    
+
     if (!token) {
       throw new Error('Failed to retrieve access token');
     }
-    
+
     return token;
   } catch (error) {
     console.error('Error getting access token:', error);
@@ -46,7 +47,7 @@ export const createOAuth2Transport = async (): Promise<nodemailer.Transporter> =
   try {
     // Get access token
     const accessToken = await getAccessToken();
-    
+
     // Create and return the transport
     const transport = nodemailer.createTransport({
       service: env.EMAIL_SERVICE,
@@ -56,13 +57,13 @@ export const createOAuth2Transport = async (): Promise<nodemailer.Transporter> =
         clientId: env.OAUTH2_CLIENT_ID,
         clientSecret: env.OAUTH2_CLIENT_SECRET,
         refreshToken: env.OAUTH2_REFRESH_TOKEN,
-        accessToken
-      }
+        accessToken,
+      },
     });
-    
+
     return transport;
   } catch (error) {
     console.error('Error creating OAuth2 transport:', error);
     throw new Error('Failed to create email transport with OAuth2');
   }
-}; 
+};

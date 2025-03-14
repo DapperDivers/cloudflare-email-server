@@ -1,6 +1,6 @@
-import { CommonRequest, CommonResponse } from '@adapters/request-response';
-import { env } from '@config/env';
-import { ErrorCode } from '@schema/api';
+import { CommonRequest, CommonResponse } from '@shared-adapters/request-response';
+import { env } from '@shared-config/env';
+import { ErrorCode } from '@shared-schema/api';
 
 /**
  * Detects if the code is running in a Worker environment
@@ -31,14 +31,14 @@ export class CommonRateLimiter {
   middleware(req: CommonRequest, res: CommonResponse, next: () => void): void {
     const ip = req.ip || '127.0.0.1';
     const now = Date.now();
-    
+
     // Clean up old entries periodically
     if (now % (60 * 60 * 1000) < 1000) {
       this.ipLimitMap.clear();
     }
-    
+
     const userData = this.ipLimitMap.get(ip);
-    
+
     if (userData) {
       // Check if the window has expired
       if (now - userData.timestamp > this.windowMs) {
@@ -61,12 +61,12 @@ export class CommonRateLimiter {
       // First request from this IP
       this.ipLimitMap.set(ip, { count: 1, timestamp: now });
     }
-    
+
     // Set rate limit headers
     res.set('X-RateLimit-Limit', String(this.max));
     res.set('X-RateLimit-Remaining', String(Math.max(0, this.max - (userData?.count ?? 1))));
     res.set('X-RateLimit-Reset', String(Math.ceil((userData?.timestamp ?? now) + this.windowMs)));
-    
+
     next();
   }
 }
@@ -129,4 +129,4 @@ export const commonEmailRateLimiter = (
   }
 
   next();
-}; 
+};

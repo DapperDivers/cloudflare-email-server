@@ -1,4 +1,4 @@
-import { EmailRequest } from '@schema/api';
+import { EmailRequest } from '@shared-schema/api';
 
 /**
  * Result of sending an email
@@ -8,13 +8,13 @@ export interface EmailSendResult {
    * Whether the email was sent successfully
    */
   success: boolean;
-  
+
   /**
    * Unique identifier for the sent email, if available
    * Can be null if the provider doesn't return an ID or the message failed to send
    */
   messageId: string | null;
-  
+
   /**
    * Error information if the email failed to send
    * Should be null for successful sends
@@ -34,7 +34,7 @@ export interface EmailProvider {
    * @returns A promise that resolves when initialization is complete
    */
   initialize(): Promise<void>;
-  
+
   /**
    * Send an email with the given data
    * @param data The request data for the email
@@ -47,4 +47,4 @@ export interface EmailProvider {
     ipAddress?: string,
     isWorkerEnvironment?: boolean
   ): Promise<EmailSendResult>;
-} 
+}

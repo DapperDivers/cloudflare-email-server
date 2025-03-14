@@ -1,10 +1,10 @@
-import { CommonMiddleware } from '@adapters/middleware-adapter';
-import { CommonRequest, CommonResponse } from '@adapters/request-response';
-import { EmailRequestSchema } from '@schema/api';
-import { EmailService } from '@services/email.service';
-import { createErrorResponse, handleError } from '@utils/error-handler';
-import { EmailError } from '@utils/errors';
-import { logger } from '@utils/logger';
+import { CommonMiddleware } from '@shared-adapters/middleware-adapter';
+import { CommonRequest, CommonResponse } from '@shared-adapters/request-response';
+import { EmailRequestSchema } from '@shared-schema/api';
+import { EmailService } from '@shared-services/email.service';
+import { createErrorResponse, handleError } from '@shared-utils/error-handler';
+import { EmailError } from '@shared-utils/errors';
+import { logger } from '@shared-utils/logger';
 
 /**
  * Type for route handlers with common request/response
@@ -49,24 +49,20 @@ export const emailHandler: RouteHandler = async (req: CommonRequest, res: Common
 
     // Validate and sanitize input (use zod schema)
     const validatedData = await EmailRequestSchema.parseAsync(req.body);
-    
+
     // Determine if we're in a worker environment (no server property in req)
     const isWorkerEnvironment = !('server' in req.getOriginalRequest());
-    
+
     // Create an email service instance and send the email
     const emailService = new EmailService();
-    const result = await emailService.sendEmail(
-      validatedData,
-      req.ip,
-      isWorkerEnvironment
-    );
+    const result = await emailService.sendEmail(validatedData, req.ip, isWorkerEnvironment);
 
     // Return a successful response with any available details
     res.status(200).json({
       success: true,
       messageId: result.messageId,
       message: result.message || 'Email sent successfully',
-      duration: result.duration
+      duration: result.duration,
     });
   } catch (error: unknown) {
     const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
@@ -97,13 +93,17 @@ export const notFoundHandler: RouteHandler = async (req: CommonRequest, res: Com
 /**
  * Request logging middleware
  */
-export const requestLoggingMiddleware: CommonMiddleware = (req: CommonRequest, res: CommonResponse, next: () => void) => {
+export const requestLoggingMiddleware: CommonMiddleware = (
+  req: CommonRequest,
+  res: CommonResponse,
+  next: () => void
+) => {
   const startTime = Date.now();
 
   // Log request - safely handle potentially missing headers
   const origin = req.get('origin') || 'unknown';
   const userAgent = req.get('user-agent') || 'unknown';
-  
+
   logger.info('Incoming request', {
     method: req.method,
     path: req.path,
@@ -131,16 +131,20 @@ export const requestLoggingMiddleware: CommonMiddleware = (req: CommonRequest, r
 /**
  * Handles CORS preflight requests
  */
-export function handleCorsPreflightRequest(req: CommonRequest, origin: string | null, corsOrigin: string): Response | null {
+export function handleCorsPreflightRequest(
+  req: CommonRequest,
+  origin: string | null,
+  corsOrigin: string
+): Response | null {
   if (req.method !== 'OPTIONS') {
     return null;
   }
-  
+
   logger.info(`Handling OPTIONS preflight for origin: ${origin || 'unknown'}`);
-  
+
   // Allow domains to communicate based on environment variable
   let isAllowed = false;
-  
+
   if (corsOrigin === '*') {
     isAllowed = true;
   } else if (origin && origin === corsOrigin) {
@@ -149,27 +153,27 @@ export function handleCorsPreflightRequest(req: CommonRequest, origin: string | 
     try {
       // Parse domains from origins
       const originDomain = new URL(origin).hostname;
-      
+
       // Handle CORS_ORIGIN with or without protocol
-      const configDomain = corsOrigin.includes('://')
-        ? new URL(corsOrigin).hostname
-        : corsOrigin;
-      
-      // Remove email. prefix if present for comparison  
+      const configDomain = corsOrigin.includes('://') ? new URL(corsOrigin).hostname : corsOrigin;
+
+      // Remove email. prefix if present for comparison
       const originWithoutPrefix = originDomain.replace(/^(?:email\.)?/, '');
       const configWithoutPrefix = configDomain.replace(/^(?:email\.)?/, '');
-      
+
       // Allow communication between domain and its email subdomain
-      isAllowed = (originWithoutPrefix === configWithoutPrefix);
-      
-      logger.info(`Comparing domains: ${originWithoutPrefix} vs ${configWithoutPrefix}, allowed: ${isAllowed}`);
+      isAllowed = originWithoutPrefix === configWithoutPrefix;
+
+      logger.info(
+        `Comparing domains: ${originWithoutPrefix} vs ${configWithoutPrefix}, allowed: ${isAllowed}`
+      );
     } catch (e) {
       logger.warn(`Error parsing origin: ${e}`);
     }
   }
-    
+
   logger.info(`Is origin allowed: ${isAllowed}`);
-  
+
   if (isAllowed && origin) {
     return new Response(null, {
       status: 204,
@@ -178,15 +182,15 @@ export function handleCorsPreflightRequest(req: CommonRequest, origin: string | 
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Max-Age': '86400',
-      }
+      },
     });
   } else {
     // If not allowed, return 403 Forbidden
     return new Response(JSON.stringify({ error: 'CORS preflight failed' }), {
       status: 403,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   }
-} 
+}

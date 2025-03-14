@@ -1,7 +1,7 @@
-import { CommonRequest, CommonResponse } from '@shared/adapters/request-response';
-import { ErrorCode } from '@shared/schema/api';
-import { logger } from '@shared/utils/logger';
 import { Request, Response, NextFunction } from 'express';
+import { CommonRequest, CommonResponse } from 'shared/src/adapters/request-response';
+import { ErrorCode } from 'shared/src/schema/api';
+import { logger } from 'shared/src/utils/logger';
 import { ZodSchema, ZodError } from 'zod';
 
 /**

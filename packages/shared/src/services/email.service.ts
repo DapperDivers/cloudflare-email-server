@@ -1,7 +1,7 @@
-import { EmailRequestSchema, type EmailRequest } from '@schema/api';
-import { EmailProviderFactory } from '@services/email-providers/email-provider-factory';
-import { EmailError } from '@utils/errors';
-import { logger } from '@utils/logger';
+import { EmailRequestSchema, type EmailRequest } from '@shared-schema/api';
+import { EmailProviderFactory } from '@shared-services/email-providers/email-provider-factory';
+import { EmailError } from '@shared-utils/errors';
+import { logger } from '@shared-utils/logger';
 
 export interface EmailResponse {
   success: boolean;
@@ -34,28 +34,28 @@ export class EmailService {
     try {
       // Validate and sanitize input
       const validatedData = await EmailRequestSchema.parseAsync(data);
-      
+
       // Get the appropriate provider for this environment
       // The factory handles caching and initialization
       const provider = await EmailProviderFactory.getProvider(isWorkerEnvironment);
 
       // Send the email using the provider
       const result = await provider.sendEmail(validatedData, ipAddress, isWorkerEnvironment);
-      
+
       const duration = Date.now() - startTime;
-      
+
       if (result.success) {
         logger.info('Email sent successfully', {
           recipientEmail: validatedData.email,
           duration,
           isWorkerEnvironment,
         });
-        
+
         return {
           success: true,
           messageId: result.messageId || undefined,
           message: 'Email sent successfully',
-          duration
+          duration,
         };
       } else {
         // If the provider returned an error but didn't throw
@@ -64,18 +64,18 @@ export class EmailService {
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
-      
-      logger.error('Email sending failed', errorInstance, { 
+
+      logger.error('Email sending failed', errorInstance, {
         ip: ipAddress,
         duration,
-        isWorkerEnvironment
+        isWorkerEnvironment,
       });
-      
+
       if (error instanceof EmailError) {
         throw error;
       }
-      
+
       throw new EmailError(errorInstance.message);
     }
   }
-} 
+}

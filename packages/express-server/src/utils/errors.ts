@@ -1,4 +1,4 @@
-import { ErrorCode } from '@schema/api';
+import { ErrorCode } from 'shared/src/schema/api';
 
 export class AppError extends Error {
   public readonly code: ErrorCode;

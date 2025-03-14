@@ -1,4 +1,4 @@
-import { env } from '@config/env';
+import { env } from '@shared-config/env';
 
 export interface Logger {
   info(message: string, data?: Record<string, unknown>): void;
@@ -48,4 +48,4 @@ export const createLogger = (): Logger => {
 };
 
 // Create a singleton instance for use throughout the application
-export const logger = createLogger(); 
+export const logger = createLogger();

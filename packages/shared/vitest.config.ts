@@ -20,14 +20,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
-      '@tests': resolve(__dirname, './src/__tests__'),
-      '@middleware': resolve(__dirname, './src/middleware'),
-      '@adapters': resolve(__dirname, './src/adapters'),
-      '@utils': resolve(__dirname, './src/utils'),
-      '@config': resolve(__dirname, './src/config'),
-      '@schema': resolve(__dirname, './src/schema'),
-      '@services': resolve(__dirname, './src/services'),
-      '@types': resolve(__dirname, './src/types'),
+      '@shared-tests': resolve(__dirname, './src/__tests__'),
+      '@shared-middleware': resolve(__dirname, './src/middleware'),
+      '@shared-adapters': resolve(__dirname, './src/adapters'),
+      '@shared-utils': resolve(__dirname, './src/utils'),
+      '@shared-config': resolve(__dirname, './src/config'),
+      '@shared-schema': resolve(__dirname, './src/schema'),
+      '@shared-services': resolve(__dirname, './src/services'),
+      '@shared-types': resolve(__dirname, './src/types'),
     },
   },
 });
