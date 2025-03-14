@@ -16,19 +16,19 @@ export class WorkerRequestAdapter implements CommonRequest {
     this.request = request;
     this._body = body;
     this._url = new URL(request.url);
-    
+
     // Convert headers to plain object
     this.headersObj = {};
     request.headers.forEach((value, key) => {
       this.headersObj[key.toLowerCase()] = value;
     });
-    
+
     // Parse query params
     this._query = {};
     this._url.searchParams.forEach((value, key) => {
       this._query[key] = value;
     });
-    
+
     this._params = {};
   }
 
@@ -137,15 +137,21 @@ export class WorkerResponseAdapter implements CommonResponse {
         headers[key] = String(value);
       }
     });
-    
-    const response = new Response(
-      JSON.stringify(this._body),
-      {
-        status: this._statusCode,
-        headers,
-      }
-    );
-    
+
+    // Status codes that don't allow a body
+    const nullBodyStatusCodes = [101, 204, 205, 304];
+
+    // Create response with or without a body based on status code
+    const response = nullBodyStatusCodes.includes(this._statusCode)
+      ? new Response(null, {
+          status: this._statusCode,
+          headers,
+        })
+      : new Response(JSON.stringify(this._body), {
+          status: this._statusCode,
+          headers,
+        });
+
     this.emit('finish');
     return response;
   }
@@ -164,4 +170,4 @@ export class WorkerResponseAdapter implements CommonResponse {
       }
     }
   }
-} 
+}

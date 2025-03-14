@@ -243,7 +243,7 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
     const payload: MailChannelsPayload = {
       personalizations: [
         {
-          to: [{ email: recipientEmail }],
+          to: [{ email: recipientEmail, name: recipientName }],
         },
       ],
       from: {
@@ -255,6 +255,10 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
         {
           type: 'text/plain',
           value: `Name: ${recipientName}\nEmail: ${recipientEmail}\nMessage: ${message}`,
+        },
+        {
+          type: 'text/html',
+          value: `<p><strong>Name:</strong> ${recipientName}</p><p><strong>Email:</strong> ${recipientEmail}</p><p><strong>Message:</strong></p><p>${message.replace(/\n/g, '<br>')}</p>`,
         },
       ],
       reply_to: {
@@ -287,6 +291,13 @@ export abstract class MailChannelsProviderBase implements EmailProvider {
       'Content-Type': 'application/json',
       ...this.getRequestHeaders(),
     };
+
+    // Log the full request for debugging
+    log.info('MailChannels API request details', {
+      url: 'https://api.mailchannels.net/tx/v1/send',
+      headers: JSON.stringify(headers),
+      payload: JSON.stringify(payload),
+    });
 
     const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
       method: 'POST',
@@ -324,6 +335,16 @@ export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
   constructor(apiKey: string) {
     super();
     this.apiKey = apiKey;
+
+    // Log API key information for debugging (but don't log the full key)
+    const keyLength = this.apiKey ? this.apiKey.length : 0;
+    const keyFirstChars = this.apiKey && keyLength > 4 ? this.apiKey.substring(0, 4) : '';
+    log.info('MailChannels API Key Provider initialized', {
+      hasKey: Boolean(this.apiKey),
+      keyLength,
+      keyPrefix: keyFirstChars ? `${keyFirstChars}...` : '',
+      keyType: typeof this.apiKey,
+    });
   }
 
   /**
@@ -331,9 +352,16 @@ export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
    * @throws Error if API key is missing
    */
   protected validateAuthentication(): void {
-    if (!env.MAILCHANNELS_API_KEY) {
+    if (!this.apiKey) {
       throw new Error(
         'MailChannels API key is missing. Please set the MAILCHANNELS_API_KEY environment variable.'
+      );
+    }
+
+    // Check for control characters or invalid API key format
+    if (this.apiKey.length < 8 || /[^\x20-\x7E]/.test(this.apiKey)) {
+      throw new Error(
+        'MailChannels API key appears to be malformed. Please check the MAILCHANNELS_API_KEY environment variable.'
       );
     }
   }
@@ -350,8 +378,14 @@ export class MailChannelsApiKeyProvider extends MailChannelsProviderBase {
    * @returns Headers for the API request
    */
   protected getRequestHeaders(): Record<string, string> {
+    // Log headers being used (sanitized)
+    log.info('MailChannels setting API key header', {
+      keySet: Boolean(this.apiKey),
+      keyLength: this.apiKey ? this.apiKey.length : 0,
+    });
+
     return {
-      'X-API-Key': env.MAILCHANNELS_API_KEY!,
+      'X-API-Key': this.apiKey,
     };
   }
 }
@@ -418,16 +452,26 @@ export class MailchannelsProvider implements EmailProvider {
 
   /**
    * Send an email using MailChannels API
-   * Uses the worker-specific implementation when in a worker environment
+   * Uses API key authentication when available, otherwise falls back to worker-specific authentication
    */
   async sendEmail(
     data: EmailRequest,
     ipAddress?: string,
     isWorkerEnvironment = false
   ): Promise<EmailSendResult> {
-    const provider = isWorkerEnvironment
-      ? new MailChannelsWorkerProvider()
-      : new MailChannelsApiKeyProvider(env.MAILCHANNELS_API_KEY || '');
+    let provider: EmailProvider;
+
+    // Always prefer API key authentication if available, regardless of environment
+    if (env.MAILCHANNELS_API_KEY) {
+      log.info('Using MailChannels API key authentication for sending email');
+      provider = new MailChannelsApiKeyProvider(env.MAILCHANNELS_API_KEY);
+    } else if (isWorkerEnvironment) {
+      log.info('Using MailChannels Worker authentication for sending email');
+      provider = new MailChannelsWorkerProvider();
+    } else {
+      log.warn('No MAILCHANNELS_API_KEY found, creating API key provider with empty key');
+      provider = new MailChannelsApiKeyProvider('');
+    }
 
     return provider.sendEmail(data, ipAddress, isWorkerEnvironment);
   }

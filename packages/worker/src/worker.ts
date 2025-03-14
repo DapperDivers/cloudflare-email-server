@@ -14,7 +14,7 @@ import {
 import { logger } from 'shared/src/utils/logger';
 
 import { WorkerRequestAdapter, WorkerResponseAdapter } from './adapters/request-response';
-import { createSecurityMiddleware, commonValidateEmailRequest } from './middleware';
+import { createSecurityMiddleware, commonValidateEmailRequest, getCorsOptions } from './middleware';
 import { createRateLimiter, commonEmailRateLimiter } from './middleware/rate-limiting';
 import { handleError, createErrorResponse } from './utils/error-handler';
 
@@ -25,6 +25,9 @@ const createWorkerRateLimiter = (windowMs: number, max: number) => {
 
 // Create coordinated security and CORS middleware
 const { corsMiddleware, securityMiddleware } = createSecurityMiddleware();
+
+// Get CORS options for consistent configuration
+const corsOptions = getCorsOptions();
 
 const workerHandler = {
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
@@ -167,7 +170,19 @@ const workerHandler = {
 
       // Handle OPTIONS requests (CORS preflight) - should be caught earlier but just in case
       if (req.method === 'OPTIONS') {
-        return new Response(null, { status: 204 });
+        const requestOrigin = req.get('Origin');
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin':
+              requestOrigin && corsOptions.origin !== '*' ? requestOrigin : '*',
+            'Access-Control-Allow-Methods': (corsOptions.methods ?? ['POST', 'OPTIONS']).join(', '),
+            'Access-Control-Allow-Headers': (corsOptions.allowedHeaders ?? ['Content-Type']).join(
+              ', '
+            ),
+            'Access-Control-Max-Age': (corsOptions.maxAge ?? 86400).toString(),
+          },
+        });
       }
 
       // URL-specific middleware and handlers

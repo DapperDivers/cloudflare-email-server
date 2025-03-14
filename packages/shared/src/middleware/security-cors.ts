@@ -149,7 +149,8 @@ export function createSecurityMiddleware() {
         applyCorsCompatibleSecurityHeaders(res);
 
         // Respond to preflight request
-        res.status(204).body = null;
+        res.status(204);
+        res.body = null;
         return;
       } else {
         // Origin not allowed

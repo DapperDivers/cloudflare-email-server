@@ -3,6 +3,7 @@ import { EmailProvider } from '@shared-services/email-providers/email-provider.i
 import {
   MailchannelsProvider,
   MailChannelsWorkerProvider,
+  MailChannelsApiKeyProvider,
 } from '@shared-services/email-providers/mailchannels-provider';
 import { NodemailerProvider } from '@shared-services/email-providers/nodemailer-provider';
 import { logger } from '@shared-utils/logger';
@@ -21,7 +22,13 @@ export class EmailProviderFactory {
    * @returns An initialized EmailProvider instance
    */
   public static async getProvider(useWorker: boolean = false): Promise<EmailProvider> {
-    const providerType = env.EMAIL_SERVICE || 'nodemailer';
+    // Prioritize EMAIL_PROVIDER over EMAIL_SERVICE
+    const emailProvider = env.EMAIL_PROVIDER;
+    const emailService = env.EMAIL_SERVICE || 'gmail';
+
+    // Determine provider type based on EMAIL_PROVIDER or fallback to EMAIL_SERVICE
+    const providerType = emailProvider === 'mailchannels' ? 'mailchannels' : emailService;
+
     const cacheKey = `${providerType}-${useWorker ? 'worker' : 'standard'}`;
 
     // Return cached provider if available
@@ -33,23 +40,52 @@ export class EmailProviderFactory {
       }
     }
 
-    logger.info(`Creating new ${cacheKey} email provider`);
+    logger.info(`Creating new ${cacheKey} email provider`, {
+      emailProvider,
+      emailService,
+      providerType,
+      useWorker,
+    });
 
     // Create appropriate provider based on configuration
     let provider: EmailProvider;
 
     switch (providerType.toLowerCase()) {
       case 'mailchannels':
-        provider = useWorker ? new MailChannelsWorkerProvider() : new MailchannelsProvider();
+        // Always use API Key provider when MAILCHANNELS_API_KEY is available
+        if (env.MAILCHANNELS_API_KEY) {
+          logger.info('Using MailChannels API Key authentication', {
+            hasApiKey: Boolean(env.MAILCHANNELS_API_KEY),
+            apiKeyLength: env.MAILCHANNELS_API_KEY.length,
+          });
+          provider = new MailChannelsApiKeyProvider(String(env.MAILCHANNELS_API_KEY));
+        } else if (useWorker) {
+          logger.info('No API key found, falling back to Worker authentication');
+          provider = new MailChannelsWorkerProvider();
+        } else {
+          provider = new MailchannelsProvider();
+        }
         break;
 
       case 'nodemailer':
       default:
         if (useWorker) {
-          logger.warn(
-            'NodemailerProvider not designed for Workers. Using MailChannelsWorkerProvider instead.'
-          );
-          provider = new MailChannelsWorkerProvider();
+          // For Workers, use MailChannels with API key if available
+          if (env.MAILCHANNELS_API_KEY) {
+            logger.warn(
+              'NodemailerProvider not designed for Workers. Using MailChannelsApiKeyProvider instead.'
+            );
+            logger.info('API Key details for NodemailerProvider fallback', {
+              hasApiKey: Boolean(env.MAILCHANNELS_API_KEY),
+              apiKeyLength: env.MAILCHANNELS_API_KEY.length,
+            });
+            provider = new MailChannelsApiKeyProvider(String(env.MAILCHANNELS_API_KEY));
+          } else {
+            logger.warn(
+              'NodemailerProvider not designed for Workers. Using MailChannelsWorkerProvider instead.'
+            );
+            provider = new MailChannelsWorkerProvider();
+          }
         } else {
           provider = new NodemailerProvider();
         }
