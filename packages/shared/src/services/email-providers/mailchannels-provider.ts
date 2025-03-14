@@ -64,9 +64,6 @@ interface MailChannelsPayload {
     name?: string;
   };
   headers?: Record<string, string>;
-  dkim_domain?: string;
-  dkim_selector?: string;
-  dkim_private_key?: string;
 }
 
 /**
@@ -217,14 +214,7 @@ export class MailChannelsProvider implements EmailProvider {
     // Then determine the email
     if (env.MAILCHANNELS_SENDER_EMAIL) {
       senderEmail = env.MAILCHANNELS_SENDER_EMAIL;
-
-      // Update domain to match the email domain for DKIM signing
-      senderDomain = senderEmail.split('@')[1];
-
-      log.info('Using configured sender email and its domain', {
-        email: senderEmail,
-        domain: senderDomain,
-      });
+      log.info('Using configured sender email', { email: senderEmail });
     } else {
       senderEmail = `noreply@${senderDomain}`;
       log.info('Using generated sender email', { email: senderEmail });
@@ -247,7 +237,7 @@ export class MailChannelsProvider implements EmailProvider {
   }): MailChannelsPayload {
     const { senderEmail, senderDomain, recipientName, recipientEmail, message } = params;
 
-    // Create base payload
+    // Create base payload - MailChannels will handle DKIM signing automatically
     const payload: MailChannelsPayload = {
       personalizations: [
         {
@@ -276,14 +266,7 @@ export class MailChannelsProvider implements EmailProvider {
       headers: {},
     };
 
-    // Add DKIM if available
-    if (env.DKIM_PRIVATE_KEY) {
-      payload.dkim_domain = senderDomain;
-      payload.dkim_selector = 'mailchannels';
-      payload.dkim_private_key = env.DKIM_PRIVATE_KEY;
-
-      log.info('DKIM configuration added', { domain: senderDomain });
-    }
+    log.info('Using MailChannels automatic DKIM signing', { domain: senderDomain });
 
     return payload;
   }

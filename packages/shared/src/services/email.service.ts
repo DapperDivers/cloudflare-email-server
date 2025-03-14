@@ -37,7 +37,7 @@ export class EmailService {
 
       // Get the appropriate provider for this environment
       // The factory handles caching and initialization
-      const provider = await EmailProviderFactory.getProvider(isWorkerEnvironment);
+      const provider = await EmailProviderFactory.getProvider();
 
       // Send the email using the provider
       const result = await provider.sendEmail(validatedData, ipAddress, isWorkerEnvironment);
