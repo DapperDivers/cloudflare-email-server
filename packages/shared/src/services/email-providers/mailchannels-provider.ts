@@ -1,5 +1,5 @@
 import { env } from '@shared-config/env';
-import { EmailRequest } from '@shared-schema/api';
+import { EmailRequest, BrowserInfo } from '@shared-schema/api';
 import {
   EmailProvider,
   EmailSendResult,
@@ -224,75 +224,107 @@ export class MailChannelsProvider implements EmailProvider {
     return { senderEmail, senderDomain };
   }
 
-  private formatBrowserInfo(browserInfo: NonNullable<EmailRequest['browserInfo']>): string {
-    const lines = [
-      `User Agent: ${browserInfo.userAgent}`,
-      `Platform: ${browserInfo.platform}`,
-      `Language: ${browserInfo.language}`,
-      `Screen Resolution: ${browserInfo.screenResolution}`,
-      `Window Size: ${browserInfo.windowSize}`,
-      `Time Zone: ${browserInfo.timeZone}`,
-      `Cookies Enabled: ${browserInfo.cookiesEnabled}`,
-      `Do Not Track: ${browserInfo.doNotTrack ?? 'Not specified'}`,
-      `Referrer: ${browserInfo.referrer}`,
-    ];
+  private formatBrowserInfo(browserInfo: NonNullable<BrowserInfo>): string {
+    const entries = Object.entries(browserInfo)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => {
+        // Format the key to be more readable
+        const formattedKey = key
+          .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+          .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
 
-    if (browserInfo.connectionType) {
-      lines.push(`Connection Type: ${browserInfo.connectionType}`);
-    }
-    if (browserInfo.deviceMemory) {
-      lines.push(`Device Memory: ${browserInfo.deviceMemory}`);
-    }
+        // Format boolean and array values
+        let formattedValue = String(value);
+        if (Array.isArray(value)) formattedValue = value.join(', ');
 
-    lines.push(
-      `Device Pixel Ratio: ${browserInfo.devicePixelRatio}`,
-      `Vendor: ${browserInfo.vendor}`,
-      `Rendering Engine: ${browserInfo.renderingEngine}`
-    );
+        return `${formattedKey}: ${formattedValue}`;
+      });
 
-    return lines.join('\n');
+    return entries.join('\n');
   }
 
-  private formatBrowserInfoHtml(browserInfo: NonNullable<EmailRequest['browserInfo']>): string {
-    const rows = [
-      ['User Agent', browserInfo.userAgent],
-      ['Platform', browserInfo.platform],
-      ['Language', browserInfo.language],
-      ['Screen Resolution', browserInfo.screenResolution],
-      ['Window Size', browserInfo.windowSize],
-      ['Time Zone', browserInfo.timeZone],
-      ['Cookies Enabled', String(browserInfo.cookiesEnabled)],
-      ['Do Not Track', browserInfo.doNotTrack ?? 'Not specified'],
-      ['Referrer', browserInfo.referrer],
-    ];
+  private formatBrowserInfoHtml(browserInfo: NonNullable<BrowserInfo>): string {
+    const rows = Object.entries(browserInfo)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => {
+        // Format the key to be more readable
+        const formattedKey = key
+          .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+          .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
 
-    if (browserInfo.connectionType) {
-      rows.push(['Connection Type', browserInfo.connectionType]);
-    }
-    if (browserInfo.deviceMemory) {
-      rows.push(['Device Memory', browserInfo.deviceMemory]);
-    }
+        // Format boolean and array values
+        let formattedValue = String(value);
+        if (Array.isArray(value)) formattedValue = value.join(', ');
 
-    rows.push(
-      ['Device Pixel Ratio', String(browserInfo.devicePixelRatio)],
-      ['Vendor', browserInfo.vendor],
-      ['Rendering Engine', browserInfo.renderingEngine]
-    );
+        return [formattedKey, formattedValue];
+      });
 
     return `
-      <h3>Browser Information</h3>
-      <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
-        ${rows
-          .map(
-            ([label, value]) => `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;"><strong>${label}</strong></td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${value}</td>
-          </tr>
-        `
-          )
-          .join('')}
-      </table>
+      <div style="margin-top: 30px; font-family: Arial, sans-serif;">
+        <details style="
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 6px;
+          padding: 0;
+          margin-bottom: 20px;
+        ">
+          <summary style="
+            padding: 15px 20px;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            color: #495057;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e9ecef;
+          ">
+            <span>Browser Information</span>
+            <span style="
+              color: #6c757d;
+              font-size: 0.9em;
+              font-weight: normal;
+            ">(Click to expand)</span>
+          </summary>
+          <div style="padding: 20px;">
+            <table style="
+              width: 100%;
+              border-collapse: separate;
+              border-spacing: 0;
+              background: white;
+              border-radius: 4px;
+              overflow: hidden;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            ">
+              <tbody>
+                ${rows
+                  .map(
+                    ([label, value], index) => `
+                  <tr style="
+                    background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};
+                  ">
+                    <td style="
+                      padding: 12px 16px;
+                      border-bottom: 1px solid #e9ecef;
+                      color: #495057;
+                      font-weight: 600;
+                      width: 200px;
+                    ">${label}</td>
+                    <td style="
+                      padding: 12px 16px;
+                      border-bottom: 1px solid #e9ecef;
+                      color: #6c757d;
+                      font-family: monospace;
+                    ">${value}</td>
+                  </tr>
+                `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
     `;
   }
 
@@ -307,22 +339,7 @@ export class MailChannelsProvider implements EmailProvider {
     recipientName: string;
     recipientEmail: string;
     message: string;
-    browserInfo?: {
-      userAgent: string;
-      language: string;
-      platform: string;
-      screenResolution: string;
-      windowSize: string;
-      timeZone: string;
-      cookiesEnabled: boolean;
-      doNotTrack: string | null;
-      referrer: string;
-      connectionType?: string;
-      deviceMemory?: string;
-      devicePixelRatio: number;
-      vendor: string;
-      renderingEngine: string;
-    };
+    browserInfo?: BrowserInfo;
   }): MailChannelsPayload {
     const { senderEmail, senderDomain, recipientName, recipientEmail, message, browserInfo } =
       params;
