@@ -107,7 +107,7 @@ export class MailChannelsProvider implements EmailProvider {
     const startTime = Date.now();
 
     try {
-      const { name, email, message } = data;
+      const { name, email, message, browserInfo } = data;
 
       log.info('Processing email request via MailChannels', {
         ip: ipAddress,
@@ -127,6 +127,7 @@ export class MailChannelsProvider implements EmailProvider {
         recipientName: name,
         recipientEmail: email,
         message,
+        browserInfo,
       });
 
       // Send the email
@@ -223,6 +224,78 @@ export class MailChannelsProvider implements EmailProvider {
     return { senderEmail, senderDomain };
   }
 
+  private formatBrowserInfo(browserInfo: NonNullable<EmailRequest['browserInfo']>): string {
+    const lines = [
+      `User Agent: ${browserInfo.userAgent}`,
+      `Platform: ${browserInfo.platform}`,
+      `Language: ${browserInfo.language}`,
+      `Screen Resolution: ${browserInfo.screenResolution}`,
+      `Window Size: ${browserInfo.windowSize}`,
+      `Time Zone: ${browserInfo.timeZone}`,
+      `Cookies Enabled: ${browserInfo.cookiesEnabled}`,
+      `Do Not Track: ${browserInfo.doNotTrack ?? 'Not specified'}`,
+      `Referrer: ${browserInfo.referrer}`,
+    ];
+
+    if (browserInfo.connectionType) {
+      lines.push(`Connection Type: ${browserInfo.connectionType}`);
+    }
+    if (browserInfo.deviceMemory) {
+      lines.push(`Device Memory: ${browserInfo.deviceMemory}`);
+    }
+
+    lines.push(
+      `Device Pixel Ratio: ${browserInfo.devicePixelRatio}`,
+      `Vendor: ${browserInfo.vendor}`,
+      `Rendering Engine: ${browserInfo.renderingEngine}`
+    );
+
+    return lines.join('\n');
+  }
+
+  private formatBrowserInfoHtml(browserInfo: NonNullable<EmailRequest['browserInfo']>): string {
+    const rows = [
+      ['User Agent', browserInfo.userAgent],
+      ['Platform', browserInfo.platform],
+      ['Language', browserInfo.language],
+      ['Screen Resolution', browserInfo.screenResolution],
+      ['Window Size', browserInfo.windowSize],
+      ['Time Zone', browserInfo.timeZone],
+      ['Cookies Enabled', String(browserInfo.cookiesEnabled)],
+      ['Do Not Track', browserInfo.doNotTrack ?? 'Not specified'],
+      ['Referrer', browserInfo.referrer],
+    ];
+
+    if (browserInfo.connectionType) {
+      rows.push(['Connection Type', browserInfo.connectionType]);
+    }
+    if (browserInfo.deviceMemory) {
+      rows.push(['Device Memory', browserInfo.deviceMemory]);
+    }
+
+    rows.push(
+      ['Device Pixel Ratio', String(browserInfo.devicePixelRatio)],
+      ['Vendor', browserInfo.vendor],
+      ['Rendering Engine', browserInfo.renderingEngine]
+    );
+
+    return `
+      <h3>Browser Information</h3>
+      <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+        ${rows
+          .map(
+            ([label, value]) => `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd;"><strong>${label}</strong></td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${value}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </table>
+    `;
+  }
+
   /**
    * Create the email payload for the MailChannels API
    * @param params Object containing email parameters
@@ -234,8 +307,39 @@ export class MailChannelsProvider implements EmailProvider {
     recipientName: string;
     recipientEmail: string;
     message: string;
+    browserInfo?: {
+      userAgent: string;
+      language: string;
+      platform: string;
+      screenResolution: string;
+      windowSize: string;
+      timeZone: string;
+      cookiesEnabled: boolean;
+      doNotTrack: string | null;
+      referrer: string;
+      connectionType?: string;
+      deviceMemory?: string;
+      devicePixelRatio: number;
+      vendor: string;
+      renderingEngine: string;
+    };
   }): MailChannelsPayload {
-    const { senderEmail, senderDomain, recipientName, recipientEmail, message } = params;
+    const { senderEmail, senderDomain, recipientName, recipientEmail, message, browserInfo } =
+      params;
+
+    const plainTextContent = `SaraEngland.com Contact Submission\n\nFrom: ${recipientName} <${recipientEmail}>\n\nMessage:\n${message}${
+      browserInfo ? `\n\nBrowser Information:\n${this.formatBrowserInfo(browserInfo)}` : ''
+    }`;
+
+    const htmlContent = `
+      <h2>Submission from ${recipientName}</h2>
+      <p><strong>From:</strong> ${recipientName} &lt;${recipientEmail}&gt;</p>
+      <p><strong>Message:</strong></p>
+      <div style="margin-left: 20px; padding: 10px; border-left: 4px solid #ccc;">
+        ${message.replace(/\n/g, '<br>')}
+      </div>
+      ${browserInfo ? this.formatBrowserInfoHtml(browserInfo) : ''}
+    `.trim();
 
     // Create base payload - MailChannels will handle DKIM signing automatically
     const payload: MailChannelsPayload = {
@@ -248,22 +352,15 @@ export class MailChannelsProvider implements EmailProvider {
         email: senderEmail,
         name: 'Contact Form',
       },
-      subject: `New Contact Form Submission from ${recipientName}`,
+      subject: `SaraEngland.com: ${recipientName} wants to get in touch!!!`,
       content: [
         {
           type: 'text/plain',
-          value: `SaraEngland.com Contact Submission\n\nFrom: ${recipientName} <${recipientEmail}>\n\nMessage:\n${message}`,
+          value: plainTextContent,
         },
         {
           type: 'text/html',
-          value: `
-            <h2>Submission from ${recipientName}</h2>
-            <p><strong>From:</strong> ${recipientName} &lt;${recipientEmail}&gt;</p>
-            <p><strong>Message:</strong></p>
-            <div style="margin-left: 20px; padding: 10px; border-left: 4px solid #ccc;">
-              ${message.replace(/\n/g, '<br>')}
-            </div>
-          `.trim(),
+          value: htmlContent,
         },
       ],
       reply_to: {
