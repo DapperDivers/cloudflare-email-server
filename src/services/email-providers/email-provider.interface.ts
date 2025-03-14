@@ -1,4 +1,4 @@
-import { EmailRequest } from '../../schema/api.js';
+import { EmailRequest } from '@schema/api';
 
 export interface EmailSendResult {
   success: boolean;

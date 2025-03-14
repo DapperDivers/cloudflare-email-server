@@ -61,7 +61,7 @@ export class ExpressRequestAdapter implements CommonRequest {
   }
 
   get ip(): string {
-    return this.req.ip;
+    return this.req.ip || 'unknown';
   }
 
   get headers(): Record<string, string | string[] | undefined> {

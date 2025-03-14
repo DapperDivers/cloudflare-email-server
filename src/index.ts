@@ -1,21 +1,27 @@
-import express, { json, Request, Response } from 'express';
+/**
+ * Main entry point for the server application
+ * This file works as both the Vite development entry point and the Express server
+ */
 
-import { env } from './config/env.js';
-import { errorHandler } from './middleware/error-handler.js';
-import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
-import { corsHandler } from './middleware/cors-handler.js';
-import { EmailService } from './services/email.service.js';
-import { logger } from './utils/logger.js';
-import { expressErrorHandler } from './utils/error-handler.js';
-import { ExpressRequestAdapter, ExpressResponseAdapter } from './adapters/request-response.js';
-import { adaptExpressMiddleware } from './adapters/middleware-adapter.js';
+import express, { json, Request, Response, NextFunction } from 'express';
+import { env } from '@config/env';
+import {
+  commonErrorHandler, 
+  createSecurityMiddleware,
+  createRateLimiter, 
+  commonEmailRateLimiter
+} from '@middleware/index';
+import { EmailService } from '@services/email.service';
+import { logger } from '@utils/logger';
+import { ExpressRequestAdapter, ExpressResponseAdapter } from '@adapters/request-response';
 import { 
   healthCheckHandler, 
   emailHandler, 
   notFoundHandler,
   requestLoggingMiddleware 
-} from './core/routes.js';
+} from '@core/routes';
 
+// Create Express application
 const app = express();
 
 // Log CORS origin for debugging
@@ -24,9 +30,15 @@ logger.info('CORS configuration', {
   nodeEnv: env.NODE_ENV
 });
 
-// All routes should use the CORS handler middleware first
-// This ensures OPTIONS preflight requests are handled correctly
-app.use(corsHandler);
+// Create coordinated CORS and security middleware
+const { corsMiddleware, securityMiddleware } = createSecurityMiddleware();
+
+// Apply CORS middleware first
+app.use((req: Request, res: Response, next) => {
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  corsMiddleware(adaptedReq, adaptedRes, next);
+});
 
 // JSON body parser
 app.use(json({ limit: '10kb' }));
@@ -38,11 +50,19 @@ app.use((req: Request, res: Response, next) => {
   requestLoggingMiddleware(adaptedReq, adaptedRes, next);
 });
 
-// Apply security middleware (this will also set security headers)
-app.use(securityMiddleware);
+// Apply security middleware 
+app.use((req: Request, res: Response, next) => {
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  securityMiddleware(adaptedReq, adaptedRes, next);
+});
 
 // Rate limiting - configurable requests per window per IP (general protection)
-app.use(createRateLimiter(env.RATE_LIMIT_WINDOW_MS, env.RATE_LIMIT_MAX));
+app.use((req: Request, res: Response, next) => {
+  // Since createRateLimiter returns an Express middleware, 
+  // we need a different approach here - we'll use the middleware directly
+  createRateLimiter(env.RATE_LIMIT_WINDOW_MS, env.RATE_LIMIT_MAX)(req, res, next);
+});
 
 // Global email service instance
 let emailService: EmailService;
@@ -89,7 +109,11 @@ const asyncExpressHandler = (fn: (req: Request, res: Response) => Promise<void>)
 // Email endpoint with validation - using shared implementation
 app.post(
   '/api/send-email',
-  emailRateLimiter,
+  (req: Request, res: Response, next) => {
+    const adaptedReq = new ExpressRequestAdapter(req);
+    const adaptedRes = new ExpressResponseAdapter(res);
+    commonEmailRateLimiter(adaptedReq, adaptedRes, next);
+  },
   asyncExpressHandler(async (req: Request, res: Response): Promise<void> => {
     const adaptedReq = new ExpressRequestAdapter(req);
     const adaptedRes = new ExpressResponseAdapter(res);
@@ -98,7 +122,11 @@ app.post(
 );
 
 // Error handling
-app.use(expressErrorHandler);
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  commonErrorHandler(err, adaptedReq, adaptedRes, next);
+});
 
 // Handle unhandled routes - using shared implementation
 app.use('*', (req: Request, res: Response): void => {
@@ -119,8 +147,35 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1);
 });
 
-// Start server
-const port = env.PORT || 3000;
-app.listen(port, () => {
-  logger.info(`Server is running on port ${port}`);
-});
+// Start server (but only if we're not in a hot reload context)
+const startServer = () => {
+  const port = env.PORT || 3000;
+  app.listen(port, () => {
+    logger.info(`Server is running on port ${port}`);
+  });
+};
+
+// For production and direct execution with Node
+if (!import.meta.hot) {
+  startServer();
+}
+
+// For hot module replacement during development with Vite
+if (import.meta.hot) {
+  // Clear any existing server
+  import.meta.hot.dispose(() => {
+    logger.info('HMR: Disposing server...');
+    // Any cleanup can go here
+  });
+  
+  import.meta.hot.accept(() => {
+    logger.info('HMR: Server code updated, restarting...');
+    // Re-initialize when accepted (already handled by Vite reloading the module)
+  });
+  
+  // Start server in development mode
+  startServer();
+}
+
+// Export for testing or programmatic usage
+export { app };

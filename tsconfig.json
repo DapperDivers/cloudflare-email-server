@@ -14,7 +14,14 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@tests/*": ["src/__tests__/*"]
+      "@tests/*": ["src/__tests__/*"],
+      "@middleware/*": ["src/middleware/*"],
+      "@core/*": ["src/core/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@utils/*": ["src/utils/*"],
+      "@config/*": ["src/config/*"],
+      "@schema/*": ["src/schema/*"],
+      "@services/*": ["src/services/*"]
     },
     "types": ["node", "vitest/globals"]
   },

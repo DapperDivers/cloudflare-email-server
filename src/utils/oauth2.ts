@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
-import { env } from '../config/env.js';
+import { env } from '@config/env';
 
 // Create OAuth2 client
 const createOAuth2Client = () => {

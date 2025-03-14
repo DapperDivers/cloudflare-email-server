@@ -1,7 +1,7 @@
-import { EmailRequest } from '../../schema/api.js';
-import { env } from '../../config/env.js';
-import { EmailProvider, EmailSendResult } from './email-provider.interface.js';
-import { EmailError } from '../../utils/errors.js';
+import { EmailRequest } from '@schema/api';
+import { env } from '@config/env';
+import { EmailProvider, EmailSendResult } from './email-provider.interface';
+import { EmailError } from '@utils/errors';
 
 // Logger function for structured logging
 const log = {

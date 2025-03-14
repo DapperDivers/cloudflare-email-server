@@ -1,4 +1,4 @@
-import { env } from '../config/env.js';
+import { env } from '@config/env';
 
 export interface Logger {
   info(message: string, data?: Record<string, unknown>): void;

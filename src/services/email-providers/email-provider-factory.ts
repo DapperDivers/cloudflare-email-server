@@ -1,7 +1,7 @@
-import { env } from '../../config/env.js';
-import { EmailProvider } from './email-provider.interface.js';
-import { MailchannelsProvider } from './mailchannels-provider.js';
-import { NodemailerProvider } from './nodemailer-provider.js';
+import { env } from '@config/env';
+import { EmailProvider } from './email-provider.interface';
+import { MailchannelsProvider } from './mailchannels-provider';
+import { NodemailerProvider } from './nodemailer-provider';
 
 // Logger function for structured logging
 const log = {

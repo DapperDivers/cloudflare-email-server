@@ -1,17 +1,25 @@
-import { env, setWorkerEnv, updateEnv } from './config/env.js';
-import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
-import { corsHandler } from './middleware/cors-handler.js';
-import { logger } from './utils/logger.js';
-import { WorkerRequestAdapter, WorkerResponseAdapter } from './adapters/request-response.js';
-import { adaptExpressMiddleware, runMiddlewareChain } from './adapters/middleware-adapter.js';
+/**
+ * Main entry point for the Cloudflare Worker
+ * This file works as both the Vite development entry point and the Worker handler
+ */
+
+import { setWorkerEnv, updateEnv } from '@config/env';
+import { 
+  createSecurityMiddleware,
+  createRateLimiter, 
+  commonEmailRateLimiter,
+  commonValidateEmailRequest,
+} from '@middleware/index';
+import { logger } from '@utils/logger';
+import { WorkerRequestAdapter, WorkerResponseAdapter } from '@adapters/request-response';
+import { adaptExpressMiddleware, runMiddlewareChain } from '@adapters/middleware-adapter';
 import { 
   healthCheckHandler, 
   emailHandler, 
   notFoundHandler,
-  requestLoggingMiddleware,
-  handleCorsPreflightRequest
-} from './core/routes.js';
-import { createErrorResponse, handleError } from './utils/error-handler.js';
+  requestLoggingMiddleware
+} from '@core/routes';
+import { createErrorResponse, handleError } from '@utils/error-handler';
 
 // Create a rate limiter adapter that works with our Worker Request/Response
 const createWorkerRateLimiter = (windowMs: number, max: number) => {
@@ -19,42 +27,35 @@ const createWorkerRateLimiter = (windowMs: number, max: number) => {
   return adaptExpressMiddleware(rateLimiter);
 };
 
-// Cloudflare Worker handler
-export default {
+// Create coordinated security and CORS middleware
+const { corsMiddleware, securityMiddleware } = createSecurityMiddleware();
+
+const workerHandler = {
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
     try {
-      // Set worker environment variables to make them available across modules
+      // Update global env with worker env and initialize logging
       setWorkerEnv(env);
+      
+      // Make environment variables available
       updateEnv();
       
-      // Log environment for debugging
-      logger.info('Worker environment', {
-        EMAIL_SERVICE: env.EMAIL_SERVICE || 'not set',
-        EMAIL_USER: env.EMAIL_USER || 'not set',
-        EMAIL_PROVIDER: env.EMAIL_PROVIDER || 'nodemailer',
-        OAUTH2_CLIENT_ID: env.OAUTH2_CLIENT_ID ? 'is set' : 'not set',
-        OAUTH2_CLIENT_SECRET: env.OAUTH2_CLIENT_SECRET ? 'is set' : 'not set',
-        OAUTH2_REFRESH_TOKEN: env.OAUTH2_REFRESH_TOKEN ? 'is set' : 'not set',
-        DKIM_PRIVATE_KEY: env.DKIM_PRIVATE_KEY ? 'is set' : 'not set'
+      // Store important environment variables in the logger for debugging
+      logger.info('Worker configuration', {
+        NODE_ENV: env.NODE_ENV || 'production',
+        CORS_ORIGIN: env.CORS_ORIGIN || '*',
+        EMAIL_SERVICE: env.EMAIL_SERVICE || 'mailchannels'
       });
       
-      // Get Origin header
+      // Extract key info from request
+      const url = new URL(request.url);
+      const { pathname } = url;
+      const method = request.method;
       const origin = request.headers.get('Origin');
-      logger.info(`Request received from origin: ${origin || 'unknown'}`);
       
-      // Handle OPTIONS preflight requests immediately
-      if (request.method === 'OPTIONS') {
-        const corsOrigin = env.CORS_ORIGIN || '*';
-        const corsResponse = handleCorsPreflightRequest(
-          new WorkerRequestAdapter(request),
-          origin,
-          corsOrigin
-        );
-        
-        if (corsResponse) {
-          return corsResponse;
-        }
-      }
+      logger.info(`Worker received ${method} request to ${pathname}`, {
+        origin: origin || 'none',
+        headers: JSON.stringify([...request.headers.entries()])
+      });
 
       // If this is a POST request directly to the API endpoint, handle with simplified logic
       if (request.method === 'POST' && 
@@ -69,8 +70,19 @@ export default {
           const req = new WorkerRequestAdapter(request, body);
           const res = new WorkerResponseAdapter();
           
-          // Run email handler
-          await emailHandler(req, res);
+          // Run core middleware first
+          const middlewares = [
+            corsMiddleware,                // Coordinated CORS handling
+            securityMiddleware,            // Coordinated security headers
+            commonEmailRateLimiter,        // Environment-agnostic email rate limiting
+            commonValidateEmailRequest     // Environment-agnostic validation
+          ];
+          
+          const middlewareHandled = await runMiddlewareChain(req, res, middlewares);
+          if (!middlewareHandled) {
+            // Run email handler
+            await emailHandler(req, res);
+          }
           
           // Return the response
           return res.send();
@@ -134,16 +146,11 @@ export default {
         nodeEnv: env.NODE_ENV
       });
 
-      // Adapt Express middleware for our Worker environment
-      const adaptedCorsHandler = adaptExpressMiddleware(corsHandler);
-      const adaptedSecurityMiddleware = adaptExpressMiddleware(securityMiddleware);
-      const adaptedEmailRateLimiter = adaptExpressMiddleware(emailRateLimiter);
-      
-      // Set up middleware chain (same order as in index.ts)
+      // Set up middleware chain (using environment-agnostic middleware)
       const middlewares = [
-        adaptedCorsHandler,                            // CORS handling
-        requestLoggingMiddleware,                      // Request logging
-        adaptedSecurityMiddleware,                     // Security headers
+        corsMiddleware,                            // Coordinated CORS handling
+        requestLoggingMiddleware,                  // Request logging
+        securityMiddleware,                        // Coordinated security headers
         createWorkerRateLimiter(env.RATE_LIMIT_WINDOW_MS, env.RATE_LIMIT_MAX)  // General rate limiting
       ];
       
@@ -165,7 +172,8 @@ export default {
       } else if ((req.path === '/api/email' || req.path === '/api/send-email') && req.method === 'POST') {
         // Email endpoint with additional middleware
         const emailMiddlewares = [
-          adaptedEmailRateLimiter  // Email-specific rate limiting
+          commonEmailRateLimiter,  // Environment-agnostic email rate limiting
+          commonValidateEmailRequest  // Environment-agnostic validation
         ];
         
         const rateLimitHandled = await runMiddlewareChain(req, res, emailMiddlewares);
@@ -195,4 +203,14 @@ export default {
       );
     }
   }
-}; 
+};
+
+// For hot module replacement during development
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    logger.info('HMR: Worker code updated, restarting...');
+  });
+}
+
+// Export the worker handler as default
+export default workerHandler; 

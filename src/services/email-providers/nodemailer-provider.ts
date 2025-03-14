@@ -1,9 +1,9 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import { env } from '../../config/env.js';
-import { EmailRequest } from '../../schema/api.js';
-import { EmailError } from '../../utils/errors.js';
-import { createOAuth2Transport } from '../../utils/oauth2.js';
-import { EmailProvider, EmailSendResult } from './email-provider.interface.js';
+import { env } from '@config/env';
+import { EmailRequest } from '@schema/api';
+import { EmailError } from '@utils/errors';
+import { createOAuth2Transport } from '@utils/oauth2';
+import { EmailProvider, EmailSendResult } from './email-provider.interface';
 
 // Logger function for structured logging
 const log = {

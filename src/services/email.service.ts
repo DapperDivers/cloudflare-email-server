@@ -1,8 +1,8 @@
-import { EmailRequestSchema, type EmailRequest } from '../schema/api.js';
-import { EmailError } from '../utils/errors.js';
-import { EmailProvider, EmailSendResult } from './email-providers/email-provider.interface.js';
-import { EmailProviderFactory } from './email-providers/email-provider-factory.js';
-import { env } from '../config/env.js';
+import { EmailRequestSchema, type EmailRequest } from '@schema/api';
+import { EmailError } from '@utils/errors';
+import { EmailProvider, EmailSendResult } from './email-providers/email-provider.interface';
+import { EmailProviderFactory } from './email-providers/email-provider-factory';
+import { env } from '@config/env';
 
 export interface EmailResponse {
   success: boolean;

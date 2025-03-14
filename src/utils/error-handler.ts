@@ -1,9 +1,9 @@
 import { ZodError } from 'zod';
 import { Request, Response, NextFunction } from 'express';
-import { ErrorCode, ApiResponse } from '../schema/api.js';
-import { AppError } from './errors.js';
-import { logger } from './logger.js';
-import { env } from '../config/env.js';
+import { ErrorCode, ApiResponse } from '@schema/api';
+import { AppError } from '@utils/errors';
+import { logger } from '@utils/logger';
+import { env } from '@config/env';
 
 /**
  * Standard error response format for the API
