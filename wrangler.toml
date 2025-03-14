@@ -9,6 +9,7 @@ crons = []
 
 # Environment - Production
 [env.production]
+name = "emailworker"
 [env.production.vars]
 NODE_ENV = "production"
 RATE_LIMIT_WINDOW_MS = "900000"    # 15 minutes in milliseconds
