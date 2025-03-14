@@ -54,6 +54,9 @@ const envSchema = z.object({
   // Email provider configuration
   EMAIL_PROVIDER: z.enum(['nodemailer', 'mailchannels']).default('nodemailer'),
   DKIM_PRIVATE_KEY: z.string().optional(),
+  MAILCHANNELS_API_KEY: z.string().optional(),
+  MAILCHANNELS_SENDER_DOMAIN: z.string().optional(),
+  MAILCHANNELS_SENDER_EMAIL: z.string().optional(),
   
   // CORS configuration
   CORS_ORIGIN: z.string().default('*'),

@@ -10,6 +10,9 @@ declare global {
       OAUTH2_CLIENT_SECRET?: string;
       OAUTH2_REFRESH_TOKEN?: string;
       OAUTH2_ACCESS_TOKEN?: string;
+      MAILCHANNELS_API_KEY?: string;
+      MAILCHANNELS_SENDER_DOMAIN?: string;
+      MAILCHANNELS_SENDER_EMAIL?: string;
     }
   }
 }

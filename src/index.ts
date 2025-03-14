@@ -1,58 +1,25 @@
 import express, { json, Request, Response } from 'express';
-import { createTransport, Transporter } from 'nodemailer';
 
 import { env } from './config/env.js';
-import { errorHandler } from './middleware/errorHandler.js';
+import { errorHandler } from './middleware/error-handler.js';
 import { securityMiddleware, createRateLimiter, emailRateLimiter } from './middleware/security.js';
-import { EmailRequestSchema, type EmailRequest, type ApiResponse } from './schema/api.js';
-import { EmailError } from './utils/errors.js';
 import { corsHandler } from './middleware/cors-handler.js';
-import { createOAuth2Transport } from './utils/oauth2.js';
 import { EmailService } from './services/email.service.js';
-
-// Logger function for structured logging
-const log = {
-  info: (message: string, data?: Record<string, unknown>): void => {
-    console.log(
-      JSON.stringify({
-        level: 'info',
-        timestamp: new Date().toISOString(),
-        message,
-        ...data,
-      })
-    );
-  },
-  error: (message: string, error: Error, data?: Record<string, unknown>): void => {
-    console.error(
-      JSON.stringify({
-        level: 'error',
-        timestamp: new Date().toISOString(),
-        message,
-        error: {
-          name: error.name,
-          message: error.message,
-          stack: env.NODE_ENV === 'development' ? error.stack : undefined,
-        },
-        ...data,
-      })
-    );
-  },
-  warn: (message: string, data?: Record<string, unknown>): void => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        timestamp: new Date().toISOString(),
-        message,
-        ...data,
-      })
-    );
-  },
-};
+import { logger } from './utils/logger.js';
+import { expressErrorHandler } from './utils/error-handler.js';
+import { ExpressRequestAdapter, ExpressResponseAdapter } from './adapters/request-response.js';
+import { adaptExpressMiddleware } from './adapters/middleware-adapter.js';
+import { 
+  healthCheckHandler, 
+  emailHandler, 
+  notFoundHandler,
+  requestLoggingMiddleware 
+} from './core/routes.js';
 
 const app = express();
 
 // Log CORS origin for debugging
-log.info('CORS configuration', { 
+logger.info('CORS configuration', { 
   corsOrigin: env.CORS_ORIGIN,
   nodeEnv: env.NODE_ENV
 });
@@ -64,33 +31,11 @@ app.use(corsHandler);
 // JSON body parser
 app.use(json({ limit: '10kb' }));
 
-// Request logging middleware
-app.use((req: Request, res: Response, next): void => {
-  const startTime = Date.now();
-
-  // Log request
-  log.info('Incoming request', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-    origin: req.get('origin'),
-    userAgent: req.get('user-agent'),
-  });
-
-  // Log response
-  res.on('finish', () => {
-    const duration = Date.now() - startTime;
-    log.info('Request completed', {
-      method: req.method,
-      path: req.path,
-      statusCode: res.statusCode,
-      duration,
-      ip: req.ip,
-      origin: req.get('origin'),
-    });
-  });
-
-  next();
+// Request logging middleware - using shared implementation
+app.use((req: Request, res: Response, next) => {
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  requestLoggingMiddleware(adaptedReq, adaptedRes, next);
 });
 
 // Apply security middleware (this will also set security headers)
@@ -108,11 +53,11 @@ const setupEmailTransport = async () => {
     emailService = new EmailService();
     await emailService.initialize();
     
-    log.info('Email service configured');
+    logger.info('Email service configured');
   } catch (error) {
     const errorInstance =
       error instanceof Error ? error : new Error('Unknown email configuration error');
-    log.error('Email service configuration failed', errorInstance);
+    logger.error('Email service configuration failed', errorInstance);
     process.exit(1);
   }
 };
@@ -120,20 +65,19 @@ const setupEmailTransport = async () => {
 // Initialize email transport
 setupEmailTransport();
 
-// Health check endpoint
+// Health check endpoint - using shared implementation
 app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-  });
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  void healthCheckHandler(adaptedReq, adaptedRes);
 });
 
 // Wrap async route handler to handle promise rejections
-const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) => {
+const asyncExpressHandler = (fn: (req: Request, res: Response) => Promise<void>) => {
   return (req: Request, res: Response): void => {
     void fn(req, res).catch((error: unknown) => {
       const err = error instanceof Error ? error : new Error('Unknown error');
-      void log.error('Unhandled route error', err);
+      logger.error('Unhandled route error', err);
       res.status(500).json({
         success: false,
         message: 'Internal Server Error',
@@ -142,81 +86,41 @@ const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) => {
   };
 };
 
-// Email endpoint with validation
+// Email endpoint with validation - using shared implementation
 app.post(
   '/api/send-email',
   emailRateLimiter,
-  asyncHandler(
-    async (
-      req: Request<object, object, EmailRequest>,
-      res: Response<ApiResponse>
-    ): Promise<void> => {
-      const startTime = Date.now();
-
-      try {
-        // Log incoming email request
-        log.info('Processing email request', {
-          ip: req.ip,
-          timestamp: new Date().toISOString(),
-        });
-
-        // Use the email service to send the email
-        const result = await emailService.sendEmail(req.body, req.ip);
-        
-        const duration = Date.now() - startTime;
-        log.info('Email sent successfully', {
-          recipientEmail: req.body.email,
-          duration,
-          timestamp: new Date().toISOString(),
-        });
-
-        res.status(200).json({
-          success: true,
-          message: 'Email sent successfully',
-        });
-      } catch (error: unknown) {
-        const errorInstance = error instanceof Error ? error : new Error('Unknown error occurred');
-        log.error('Email sending failed', errorInstance, { ip: req.ip });
-        throw new EmailError(errorInstance.message);
-      }
-    }
-  )
+  asyncExpressHandler(async (req: Request, res: Response): Promise<void> => {
+    const adaptedReq = new ExpressRequestAdapter(req);
+    const adaptedRes = new ExpressResponseAdapter(res);
+    await emailHandler(adaptedReq, adaptedRes);
+  })
 );
 
 // Error handling
-app.use(errorHandler);
+app.use(expressErrorHandler);
 
-// Handle unhandled routes
+// Handle unhandled routes - using shared implementation
 app.use('*', (req: Request, res: Response): void => {
-  log.warn('Route not found', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-  });
-
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-    error: {
-      code: 'NOT_FOUND',
-    },
-  });
+  const adaptedReq = new ExpressRequestAdapter(req);
+  const adaptedRes = new ExpressResponseAdapter(res);
+  void notFoundHandler(adaptedReq, adaptedRes);
 });
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (error: Error) => {
-  void log.error('Unhandled rejection', error);
+  logger.error('Unhandled rejection', error);
   process.exit(1);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
-  void log.error('Uncaught exception', error);
+  logger.error('Uncaught exception', error);
   process.exit(1);
 });
 
 // Start server
 const port = env.PORT || 3000;
 app.listen(port, () => {
-  log.info(`Server is running on port ${port}`);
+  logger.info(`Server is running on port ${port}`);
 });
